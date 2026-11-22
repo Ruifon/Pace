@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg"><meta name="theme-color" content="#0f1012"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Pace">
+<title>Pace — Minhas Corridas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1012; --card:#18191c; --card2:#212226; --line:#2b2d32;
+  --txt:#f4f4f5; --mut:#9a9ca3; --acc:#fc5200; --acc2:#ff7a3d; --ok:#22c55e; --bad:#ef4444;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;height:100%}
+body{display:flex;flex-direction:column;min-height:100vh}
+.num{font-family:"Barlow Condensed",Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+header{padding:calc(14px + var(--safe-t)) 18px 10px;display:flex;align-items:center;justify-content:space-between}
+header h1{margin:0;font-size:20px;font-weight:700;display:flex;gap:8px;align-items:center}
+header h1 svg{width:22px;height:22px}
+.chip{font-size:12px;padding:5px 10px;border-radius:99px;background:var(--card2);color:var(--mut);display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.chip.good .dot{background:var(--ok)} .chip.warn .dot{background:#eab308} .chip.bad .dot{background:var(--bad)}
+main{flex:1;overflow:auto;padding:0 16px calc(92px + var(--safe-b))}
+.view{display:none} .view.on{display:block}
+.mapbox{position:relative;border-radius:16px;overflow:hidden;background:var(--card);border:1px solid var(--line);height:34vh;min-height:200px}
+.mapbox canvas{width:100%;height:100%;display:block}
+.maphint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);font-size:13px;padding:20px;pointer-events:none}
+.banner{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:#2a1a10;border:1px solid #5a2e12;color:#ffc9a8;font-size:13px;line-height:1.4;display:none}
+.banner.on{display:block}
+.gpsrow{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+.gpsrow .gi{width:38px;height:38px;border-radius:10px;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--mut);flex:none}
+.gpsrow .gi svg{width:22px;height:22px}
+.gpsrow.on .gi{background:rgba(252,82,0,.15);color:var(--acc)}
+.gpsrow.good .gi{background:rgba(34,197,94,.15);color:var(--ok)}
+.sw{width:52px;height:30px;border-radius:99px;border:0;background:var(--card2);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.sw span{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
+.sw[aria-checked="true"]{background:var(--acc)} .sw[aria-checked="true"] span{left:25px}
+.chip{cursor:pointer}
+.bigtime{text-align:center;margin:18px 0 4px}
+.bigtime .v{font-size:72px;font-weight:600;line-height:1}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);font-weight:600}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center}
+.stat .v{font-size:32px;font-weight:600;line-height:1.1}
+.stat .u{font-size:12px;color:var(--mut)}
+.controls{display:flex;justify-content:center;gap:18px;margin:22px 0 8px;align-items:center}
+.btn-round{width:84px;height:84px;border-radius:50%;border:0;font-weight:700;font-size:14px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;transition:transform .1s}
+.btn-round:active{transform:scale(.94)}
+.btn-round svg{width:28px;height:28px}
+.b-start{background:var(--acc);box-shadow:0 8px 30px rgba(252,82,0,.35);width:96px;height:96px}
+.b-pause{background:var(--card2);border:2px solid var(--line)}
+.b-finish{background:var(--txt);color:#111}
+.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:600;font-size:15px;cursor:pointer;font-family:inherit}
+.btn.pri{background:var(--acc);color:#fff} .btn.sec{background:var(--card2);color:var(--txt)} .btn.ghost{background:none;color:var(--mut)}
+.btn.danger{background:none;color:var(--bad)}
+.btn.block{width:100%}
+.splits-live{margin-top:12px}
+nav{position:fixed;left:0;right:0;bottom:0;background:rgba(15,16,18,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;padding:8px 0 calc(8px + var(--safe-b));z-index:5}
+nav button{flex:1;background:none;border:0;color:var(--mut);font-family:inherit;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px;cursor:pointer}
+nav button svg{width:24px;height:24px}
+nav button.on{color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.wk{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.wk .v{font-size:28px;font-weight:600}
+.bars{display:flex;align-items:flex-end;gap:6px;height:90px;margin-top:14px}
+.bars .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+.bars .f{width:100%;background:var(--card2);border-radius:5px 5px 2px 2px;min-height:3px}
+.bars .b.cur .f{background:var(--acc)}
+.bars .t{font-size:10px;color:var(--mut)}
+.act{cursor:pointer}
+.act h3{margin:0 0 2px;font-size:16px}
+.act .d{font-size:12px;color:var(--mut)}
+.act .m{display:flex;gap:18px;margin-top:10px}
+.act .m .v{font-size:22px;font-weight:600}
+.act canvas{width:64px;height:64px;border-radius:10px;background:var(--card2);flex:none}
+.empty{text-align:center;color:var(--mut);padding:40px 20px;font-size:14px;line-height:1.5}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:8px 4px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
+td .bar{height:6px;background:var(--acc);border-radius:3px}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:10;align-items:flex-end;justify-content:center}
+.sheet-bg.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + var(--safe-b));max-height:92vh;overflow:auto}
+.sheet h2{margin:0 0 14px;font-size:20px}
+label.f{display:block;margin:12px 0 6px;font-size:13px;color:var(--mut);font-weight:600}
+input,textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:12px;font-size:16px;font-family:inherit}
+input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.actions{display:flex;gap:10px;margin-top:18px}
+.actions .btn{flex:1}
+.toast{position:fixed;left:50%;bottom:calc(100px + var(--safe-b));transform:translateX(-50%);background:var(--txt);color:#111;padding:10px 16px;border-radius:99px;font-size:14px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.on{opacity:1}
+.store{font-size:11px;color:var(--mut);text-align:center;margin:6px 0 14px}
+.pill{display:inline-block;font-size:11px;padding:3px 8px;border-radius:99px;background:var(--card2);color:var(--mut);margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header>
+  <h1><svg viewBox="0 0 24 24" fill="#fc5200"><path d="M15.4 17.9l-2.1-4.1h-3l5.1 10 5.1-10h-3zM10.2 0L3.4 13.8h4L10.2 8l2.9 5.8h4z"/></svg> Pace</h1>
+  <div class="chip" id="gpsChip"><span class="dot"></span><span id="gpsTxt">GPS em espera</span></div>
+</header>
+
+<main>
+  <!-- GRAVAR -->
+  <section class="view on" id="v-rec">
+    <div class="mapbox"><canvas id="liveMap"></canvas><div class="maphint" id="mapHint">Seu percurso aparece aqui quando o GPS estiver ativo.</div></div>
+    <div class="gpsrow" id="gpsRow">
+      <div class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg></div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px">GPS</div><div id="gpsSub" style="font-size:12px;color:var(--mut)">Desligado — distância manual</div></div>
+      <button class="sw" id="gpsSw" role="switch" aria-checked="false" aria-label="Ativar GPS"><span></span></button>
+    </div>
+    <div class="banner" id="gpsBanner"></div>
+    <div class="bigtime"><div class="lbl">Tempo</div><div class="v num" id="tTime">00:00</div></div>
+    <div class="grid3">
+      <div class="stat"><div class="lbl">Distância</div><div class="v num" id="tDist">0,00</div><div class="u">km</div></div>
+      <div class="stat"><div class="lbl">Ritmo médio</div><div class="v num" id="tAvg">--:--</div><div class="u">/km</div></div>
+      <div class="stat"><div class="lbl">Ritmo atual</div><div class="v num" id="tCur">--:--</div><div class="u">/km</div></div>
+    </div>
+    <div class="controls" id="ctrls"></div>
+    <div class="card splits-live" id="liveSplits" style="display:none"></div>
+  </section>
+
+  <!-- ATIVIDADES -->
+  <section class="view" id="v-act">
+    <div class="card">
+      <div class="row"><div class="lbl">Esta semana</div><button class="btn ghost" style="padding:4px 0;font-size:13px" id="addManual">+ Corrida manual</button></div>
+      <div class="wk">
+        <div><div class="v num" id="wkKm">0</div><div class="u lbl" style="font-size:10px">km</div></div>
+        <div><div class="v num" id="wkTime">0h</div><div class="u lbl" style="font-size:10px">tempo</div></div>
+        <div><div class="v num" id="wkRuns">0</div><div class="u lbl" style="font-size:10px">corridas</div></div>
+      </div>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div class="card" id="prCard" style="display:none"></div>
+    <div id="list"></div>
+    <div class="store" id="storeNote"></div>
+  </section>
+</main>
+
+<nav>
+  <button class="on" data-v="rec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>Gravar</button>
+  <button data-v="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Atividades</button>
+</nav>
+
+<!-- Sheet -->
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+// ---------- utils ----------
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,'0');
+function fmtTime(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60; return h? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`; }
+function fmtPace(secPerKm){ if(!isFinite(secPerKm)||secPerKm<=0||secPerKm>3600) return '--:--'; const m=Math.floor(secPerKm/60), s=Math.round(secPerKm%60); return s===60? `${m+1}:00` : `${m}:${pad(s)}`; }
+const fmtKm = m => (m/1000).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function hav(a,b){ const R=6371000, toR=x=>x*Math.PI/180; const dLat=toR(b[0]-a[0]), dLng=toR(b[1]-a[1]); const h=Math.sin(dLat/2)**2+Math.cos(toR(a[0]))*Math.cos(toR(b[0]))*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('on'),2200); }
+function defaultTitle(d){ const h=d.getHours(); return h<12?'Corrida da manhã':h<18?'Corrida da tarde':'Corrida da noite'; }
+const ls = { get(k){ try{return JSON.parse(localStorage.getItem(k))}catch(e){return null} }, set(k,v){ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){} }, del(k){ try{localStorage.removeItem(k)}catch(e){} } };
+
+// ---------- storage (db -> localStorage -> memory) ----------
+let runs = [];
+let store = { kind:'mem' };
+function sortRuns(){ runs.sort((a,b)=>b.start-a.start); }
+const localRuns = ls.get('pace_runs');
+if (Array.isArray(localRuns)) { runs = localRuns; store.kind='local'; }
+else { try{ localStorage.setItem('pace_t','1'); localStorage.removeItem('pace_t'); store.kind='local'; }catch(e){} }
+sortRuns();
+
+async function initDb(){
+  try{
+    if(!window.claude || !claude.use) return;
+    const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+    if(!db || !user) return;
+    const id = await user.id();
+    if(!id) return;
+    const col = db.collection('data/users/'+id);
+    store = { kind:'db', col };
+    renderStore('Sincronizando…');
+    const timer = setTimeout(()=>renderStore('Não foi possível alcançar o servidor ainda — exibindo o que está neste aparelho.'),10000);
+    col.onSnapshot(snap => {
+      if(!snap.metadata.fromCache) clearTimeout(timer);
+      const remote = snap.docs.filter(d=>d.exists).map(d=>({...d.data(), id:d.id}));
+      // migrate any local-only runs into the db once
+      const ids = new Set(remote.map(r=>r.id));
+      const pending = (ls.get('pace_runs')||[]).filter(r=>!ids.has(r.id));
+      runs = remote.concat(pending); sortRuns();
+      if(!snap.metadata.fromCache && pending.length){ (async()=>{ for(const r of pending){ try{ await col.doc(r.id).set(r);}catch(e){} } ls.del('pace_runs'); })(); }
+      renderStore(); renderActs();
+    }, err => { clearTimeout(timer); store={kind: localRuns?'local':'local'}; renderStore('Sincronização indisponível — salvando neste aparelho.'); });
+  }catch(e){ /* stay local */ }
+}
+async function saveRun(r){
+  runs = runs.filter(x=>x.id!==r.id); runs.push(r); sortRuns(); renderActs();
+  if(store.kind==='db'){ try{ await store.col.doc(r.id).set(r); return; }catch(e){ if(e&&e.code==='quota_exceeded') toast('Espaço cheio — apague corridas antigas'); } }
+  ls.set('pace_runs', runs.filter(x=>x));
+}
+async function deleteRun(id){
+  runs = runs.filter(x=>x.id!==id); renderActs();
+  if(store.kind==='db'){ try{ await store.col.doc(id).delete(); }catch(e){} }
+  const l=ls.get('pace_runs'); if(l) ls.set('pace_runs', l.filter(x=>x.id!==id));
+}
+function renderStore(msg){
+  const t = msg || (store.kind==='db' ? 'Corridas salvas na sua conta e sincronizadas entre aparelhos.' : store.kind==='local' ? 'Corridas salvas neste navegador.' : 'Armazenamento indisponível: as corridas ficam só até fechar a página.');
+  $('#storeNote').textContent = t;
+}
+
+// ---------- recording state ----------
+const S = { status:'idle', startAt:0, elapsedBefore:0, resumedAt:0, dist:0, pts:[], segs:[[]], splits:[], lastPt:null, recent:[], gps:'idle', watch:null, wake:null };
+
+function elapsed(){ return S.elapsedBefore + (S.status==='run' ? (Date.now()-S.resumedAt)/1000 : 0); }
+
+S.gpsOn = ls.get('pace_gps') === true;
+function setGps(state, txt, sub){
+  S.gps=state; const c=$('#gpsChip'); c.className='chip '+({good:'good',search:'warn',bad:'bad'}[state]||''); $('#gpsTxt').textContent=txt;
+  const row=$('#gpsRow'); row.classList.toggle('on', S.gpsOn && state!=='good'); row.classList.toggle('good', state==='good');
+  $('#gpsSub').textContent = sub || (S.gpsOn ? txt : 'Desligado — distância manual');
+  $('#gpsSw').setAttribute('aria-checked', S.gpsOn ? 'true':'false');
+}
+async function permState(){
+  try{ const p = await navigator.permissions.query({name:'geolocation'}); return p.state; }catch(e){ return 'unknown'; }
+}
+async function enableGps(){
+  S.gpsOn = true; ls.set('pace_gps', true); showBanner('');
+  if(!('geolocation' in navigator)){ gpsFail(); return; }
+  const st = await permState();
+  setGps('search','Ativando…', st==='prompt' ? 'Toque em "Permitir" no aviso do navegador' : 'Procurando satélites…');
+  startGps();
+}
+function disableGps(){
+  S.gpsOn = false; ls.set('pace_gps', false); stopGps(); S.lastFix=null; showBanner('');
+  setGps('idle','GPS desligado'); drawLive();
+  if(S.status!=='idle') toast('GPS desligado — informe a distância ao concluir');
+}
+function toggleGps(){ S.gpsOn ? disableGps() : enableGps(); }
+$('#gpsSw').onclick = toggleGps;
+$('#gpsChip').onclick = ()=>{ if(!S.gpsOn) enableGps(); else if(S.gps==='bad') enableGps(); else go('rec'); };
+function showBanner(t){ const b=$('#gpsBanner'); if(t){b.textContent=t;b.classList.add('on');}else b.classList.remove('on'); }
+
+function startGps(){
+  if(!('geolocation' in navigator)){ gpsFail(); return; }
+  if(S.watch!=null) return;
+  if(S.gps!=='search') setGps('search','Procurando sinal…');
+  try{
+    S.watch = navigator.geolocation.watchPosition(onPos, err=>{
+      if(err.code===1) gpsFail(true); else setGps('search', 'Sinal fraco…');
+    }, { enableHighAccuracy:true, maximumAge:0, timeout:20000 });
+  }catch(e){ gpsFail(); }
+}
+function gpsFail(denied){
+  stopGps();
+  setGps('bad','GPS bloqueado', 'Sem acesso à localização — toque para tentar de novo');
+  showBanner(denied
+    ? 'A localização foi recusada. Se você negou no aviso, libere em Configurações do site › Localização e toque no botão de novo. Dentro do app/site do Claude a localização é sempre bloqueada — o GPS só funciona com a página aberta no seu próprio endereço (ex.: GitHub Pages). O cronômetro continua normalmente; informe a distância ao concluir.'
+    : 'Este navegador não oferece GPS aqui. O cronômetro continua — informe a distância ao concluir.');
+}
+function stopGps(){ if(S.watch!=null){ try{navigator.geolocation.clearWatch(S.watch)}catch(e){} S.watch=null; } }
+
+function onPos(p){
+  const {latitude:lat, longitude:lng, accuracy:acc} = p.coords; const t = p.timestamp || Date.now();
+  if(!S.gpsOn) return;
+  if(acc>40){ setGps('search',`Precisão baixa (${Math.round(acc)} m)`, `Aguarde o sinal melhorar (±${Math.round(acc)} m) — de preferência em céu aberto`); return; }
+  setGps('good', `GPS ok · ±${Math.round(acc)} m`, S.status==='idle' ? `Sinal pronto (±${Math.round(acc)} m) — pode iniciar` : `Gravando percurso · ±${Math.round(acc)} m`); showBanner('');
+  if(S.status!=='run') { S.lastFix=[lat,lng]; drawLive(); return; }
+  const pt=[+lat.toFixed(6), +lng.toFixed(6), t];
+  if(S.lastPt){
+    const d = hav(S.lastPt, pt), dt=(t-S.lastPt[2])/1000;
+    if(d < Math.max(3, acc*0.4)) return;           // ruído parado
+    if(dt>0 && d/dt > 11) return;                  // salto impossível (>40 km/h)
+    S.dist += d;
+    S.recent.push({d, t}); while(S.recent.length && t - S.recent[0].t > 30000) S.recent.shift();
+    const kmDone = Math.floor(S.dist/1000);
+    while(S.splits.length < kmDone){
+      const prevT = S.splits.reduce((a,b)=>a+b,0);
+      S.splits.push(elapsed() - prevT);
+    }
+  }
+  S.lastPt = pt; S.pts.push(pt); S.segs[S.segs.length-1].push([pt[0],pt[1]]);
+  drawLive();
+}
+function currentPace(){
+  if(S.recent.length<2) return NaN;
+  const d=S.recent.reduce((a,b)=>a+b.d,0), dt=(S.recent[S.recent.length-1].t - S.recent[0].t)/1000;
+  return d>15 ? dt/(d/1000) : NaN;
+}
+
+async function wakeOn(){ try{ if('wakeLock' in navigator) S.wake = await navigator.wakeLock.request('screen'); }catch(e){} }
+function wakeOff(){ try{ S.wake && S.wake.release(); }catch(e){} S.wake=null; }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && S.status==='run') wakeOn(); });
+
+function start(){
+  Object.assign(S,{status:'run', startAt:Date.now(), elapsedBefore:0, resumedAt:Date.now(), dist:0, pts:[], segs:[[]], splits:[], lastPt:null, recent:[]});
+  if(S.gpsOn) startGps(); else showBanner('');
+  wakeOn(); renderCtrls(); tick();
+}
+function pause(){ S.elapsedBefore = elapsed(); S.status='pause'; S.lastPt=null; S.recent=[]; renderCtrls(); persist(); }
+function resume(){ S.status='run'; S.resumedAt=Date.now(); S.segs.push([]); if(S.gpsOn) startGps(); renderCtrls(); tick(); }
+function finish(){ if(S.status==='run') pause(); openFinish(); }
+function resetRec(){ stopGps(); wakeOff(); Object.assign(S,{status:'idle',elapsedBefore:0,dist:0,pts:[],segs:[[]],splits:[],lastPt:null,recent:[]}); ls.del('pace_live'); S.lastFix=null; setGps('idle', S.gpsOn?'GPS ligado':'GPS desligado', S.gpsOn?'Toque em Iniciar para buscar o sinal':undefined); showBanner(''); renderCtrls(); updateLive(); drawLive(); }
+
+function persist(){ if(S.status==='idle') return; ls.set('pace_live',{status:S.status==='run'?'run':'pause', startAt:S.startAt, elapsedBefore:elapsed(), savedAt:Date.now(), dist:S.dist, segs:S.segs, splits:S.splits}); }
+setInterval(()=>{ if(S.status==='run') persist(); }, 5000);
+
+function restore(){
+  const l = ls.get('pace_live'); if(!l) return;
+  Object.assign(S,{status:'pause', startAt:l.startAt, elapsedBefore: l.status==='run' ? l.elapsedBefore + (Date.now()-l.savedAt)/1000 : l.elapsedBefore, dist:l.dist||0, segs:l.segs||[[]], splits:l.splits||[]});
+  toast('Corrida em andamento recuperada (pausada)');
+}
+
+const ICON = {
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+  stop:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>'
+};
+function renderCtrls(){
+  const c=$('#ctrls'); c.innerHTML='';
+  const mk=(cls,html,fn)=>{const b=document.createElement('button');b.className='btn-round '+cls;b.innerHTML=html;b.onclick=fn;c.appendChild(b);};
+  if(S.status==='idle') mk('b-start', ICON.play+'INICIAR', start);
+  else if(S.status==='run') mk('b-pause', ICON.pause+'PAUSAR', pause);
+  else { mk('b-start', ICON.play+'RETOMAR', resume); mk('b-finish', ICON.stop+'CONCLUIR', finish); }
+}
+function updateLive(){
+  const e=elapsed();
+  $('#tTime').textContent=fmtTime(e);
+  $('#tDist').textContent=fmtKm(S.dist);
+  $('#tAvg').textContent= S.dist>50 ? fmtPace(e/(S.dist/1000)) : '--:--';
+  $('#tCur').textContent= S.status==='run' ? fmtPace(currentPace()) : '--:--';
+  const ls_=$('#liveSplits');
+  if(S.splits.length){ ls_.style.display='block'; ls_.innerHTML='<div class="lbl" style="margin-bottom:6px">Parciais</div>'+splitsTable(S.splits); } else ls_.style.display='none';
+}
+function tick(){ updateLive(); if(S.status==='run') requestAnimationFrame(()=>setTimeout(tick,250)); }
+
+// ---------- drawing ----------
+function drawRoute(cv, segs, opts={}){
+  const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
+  cv.width=w*dpr; cv.height=h*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  if(opts.grid){ g.strokeStyle='#202125'; g.lineWidth=1; for(let x=0;x<w;x+=28){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();} for(let y=0;y<h;y+=28){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();} }
+  const all=segs.flat(); if(!all.length){ if(opts.here){ g.fillStyle='#3b82f6'; g.beginPath(); g.arc(w/2,h/2,7,0,7); g.fill(); } return false; }
+  let minLa=Infinity,maxLa=-Infinity,minLn=Infinity,maxLn=-Infinity;
+  for(const [la,ln] of all){minLa=Math.min(minLa,la);maxLa=Math.max(maxLa,la);minLn=Math.min(minLn,ln);maxLn=Math.max(maxLn,ln);}
+  const k=Math.cos((minLa+maxLa)/2*Math.PI/180);
+  const spanX=Math.max((maxLn-minLn)*k,0.0004), spanY=Math.max(maxLa-minLa,0.0004);
+  const p=opts.pad??16, sc=Math.min((w-2*p)/spanX,(h-2*p)/spanY);
+  const ox=(w-spanX*sc)/2, oy=(h-spanY*sc)/2, cx=(minLn+maxLn)/2, cy=(minLa+maxLa)/2;
+  const P=([la,ln])=>[w/2+(ln-cx)*k*sc, h/2-(la-cy)*sc];
+  g.lineJoin='round'; g.lineCap='round';
+  for(const seg of segs){ if(seg.length<2) continue; g.strokeStyle=opts.color||'#fc5200'; g.lineWidth=opts.lw||4; g.beginPath(); seg.forEach((pt,i)=>{const [x,y]=P(pt); i?g.lineTo(x,y):g.moveTo(x,y);}); g.stroke(); }
+  if(opts.dots!==false){ const s=P(all[0]), e=P(all[all.length-1]); g.fillStyle='#22c55e'; g.beginPath(); g.arc(s[0],s[1],opts.lw?3:6,0,7); g.fill(); g.fillStyle=opts.live?'#3b82f6':'#ef4444'; g.beginPath(); g.arc(e[0],e[1],opts.lw?3:6,0,7); g.fill(); if(opts.live){g.strokeStyle='#fff';g.lineWidth=2;g.stroke();} }
+  return true;
+}
+function drawLive(){
+  const has = drawRoute($('#liveMap'), S.segs, {grid:true, live:true, here: !!S.lastFix});
+  $('#mapHint').style.display = (has || S.lastFix) ? 'none' : 'flex';
+}
+window.addEventListener('resize', ()=>{ drawLive(); });
+
+// ---------- splits ----------
+function splitsTable(splits, rest){
+  const max=Math.max(...splits); let h='<table><tr><th>Km</th><th>Ritmo</th><th style="width:45%"></th></tr>';
+  splits.forEach((s,i)=>{ h+=`<tr><td class="num">${i+1}</td><td class="num">${fmtPace(s)}</td><td><div class="bar" style="width:${Math.max(15,Math.round((s/max)*100))}%;opacity:${s===Math.min(...splits)?1:.55}"></div></td></tr>`; });
+  if(rest && rest.dist>20) h+=`<tr><td class="num" style="color:var(--mut)">${(rest.dist/1000).toFixed(2).replace('.',',')}</td><td class="num" style="color:var(--mut)">${fmtPace(rest.time/(rest.dist/1000))}</td><td></td></tr>`;
+  return h+'</table>';
+}
+
+// ---------- sheets ----------
+function openSheet(html){ $('#sheet').innerHTML=html; $('#sheetBg').classList.add('on'); }
+function closeSheet(){ $('#sheetBg').classList.remove('on'); }
+$('#sheetBg').addEventListener('click',e=>{ if(e.target.id==='sheetBg' && !$('#sheet').dataset.lock) closeSheet(); });
+
+function parseKm(v){ const n=parseFloat(String(v).replace(',','.')); return isFinite(n)&&n>0? n : NaN; }
+
+function openFinish(){
+  const d=new Date(S.startAt), e=elapsed(), gpsKm=S.dist/1000;
+  $('#sheet').dataset.lock='1';
+  openSheet(`
+    <h2>Salvar corrida</h2>
+    <div class="grid3" style="margin-top:0"><div class="stat"><div class="lbl">Tempo</div><div class="v num" style="font-size:26px">${fmtTime(e)}</div></div>
+    <div class="stat"><div class="lbl">Distância</div><div class="v num" style="font-size:26px" id="fDistShow">${gpsKm.toFixed(2).replace('.',',')}</div></div>
+    <div class="stat"><div class="lbl">Ritmo</div><div class="v num" style="font-size:26px" id="fPaceShow">${gpsKm>0.05?fmtPace(e/gpsKm):'--:--'}</div></div></div>
+    <label class="f">Título</label><input id="fTitle" value="${defaultTitle(d)}">
+    <label class="f">Distância (km)${gpsKm>0.05?' <span class="pill">GPS</span>':''}</label>
+    <input id="fDist" inputmode="decimal" placeholder="Ex.: 5,2" value="${gpsKm>0.05?gpsKm.toFixed(2).replace('.',','):''}">
+    <label class="f">Como foi? (opcional)</label><textarea id="fNote" rows="2" placeholder="Percurso, sensação, clima…"></textarea>
+    <div class="actions"><button class="btn danger" id="fDiscard">Descartar</button><button class="btn sec" id="fBack">Voltar</button><button class="btn pri" id="fSave">Salvar</button></div>
+  `);
+  const upd=()=>{ const km=parseKm($('#fDist').value); $('#fDistShow').textContent= isFinite(km)?km.toFixed(2).replace('.',','):'--'; $('#fPaceShow').textContent= isFinite(km)?fmtPace(e/km):'--:--'; };
+  $('#fDist').addEventListener('input',upd);
+  $('#fBack').onclick=()=>{ delete $('#sheet').dataset.lock; closeSheet(); };
+  $('#fDiscard').onclick=()=>{
+    $('#fDiscard').textContent='Toque de novo p/ descartar'; $('#fDiscard').onclick=()=>{ delete $('#sheet').dataset.lock; closeSheet(); resetRec(); toast('Corrida descartada'); };
+  };
+  $('#fSave').onclick=async()=>{
+    const km=parseKm($('#fDist').value);
+    if(!isFinite(km)){ $('#fDist').focus(); $('#fDist').style.outline='2px solid var(--bad)'; return; }
+    const route = simplify(S.segs);
+    const distM = km*1000;
+    const splits = Math.abs(distM - S.dist) < 30 ? S.splits.slice() : [];
+    const r={ id:'r'+S.startAt.toString(36)+Math.random().toString(36).slice(2,6), start:S.startAt, title:$('#fTitle').value.trim()||defaultTitle(d), note:$('#fNote').value.trim(), duration:Math.round(e), distance:Math.round(distM), splits:splits.map(Math.round), route, gps: S.dist>50 };
+    delete $('#sheet').dataset.lock; closeSheet(); resetRec();
+    await saveRun(r); toast('Corrida salva 🎉'); go('act'); openDetail(r.id);
+  };
+}
+function simplify(segs){
+  const total=segs.reduce((a,s)=>a+s.length,0); const step=Math.max(1,Math.ceil(total/600));
+  return segs.filter(s=>s.length>1).map(s=>s.filter((_,i)=>i%step===0||i===s.length-1).map(([a,b])=>[a,b]));
+}
+
+function openManual(){
+  const now=new Date(); const iso=new Date(now-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  openSheet(`
+    <h2>Corrida manual</h2>
+    <label class="f">Título</label><input id="mTitle" value="${defaultTitle(now)}">
+    <label class="f">Data e hora</label><input id="mDate" type="datetime-local" value="${iso}">
+    <label class="f">Distância (km)</label><input id="mDist" inputmode="decimal" placeholder="Ex.: 5">
+    <label class="f">Tempo</label>
+    <div class="three"><input id="mH" inputmode="numeric" placeholder="h"><input id="mM" inputmode="numeric" placeholder="min"><input id="mS" inputmode="numeric" placeholder="seg"></div>
+    <label class="f">Como foi? (opcional)</label><textarea id="mNote" rows="2"></textarea>
+    <div class="actions"><button class="btn sec" id="mCancel">Cancelar</button><button class="btn pri" id="mSave">Salvar</button></div>`);
+  $('#mCancel').onclick=closeSheet;
+  $('#mSave').onclick=async()=>{
+    const km=parseKm($('#mDist').value); const sec=(+$('#mH').value||0)*3600+(+$('#mM').value||0)*60+(+$('#mS').value||0);
+    if(!isFinite(km)){ $('#mDist').style.outline='2px solid var(--bad)'; return; }
+    if(!(sec>0)){ $('#mM').style.outline='2px solid var(--bad)'; return; }
+    const st=new Date($('#mDate').value).getTime()||Date.now();
+    const r={id:'r'+st.toString(36)+Math.random().toString(36).slice(2,6), start:st, title:$('#mTitle').value.trim()||'Corrida', note:$('#mNote').value.trim(), duration:Math.round(sec), distance:Math.round(km*1000), splits:[], route:[], gps:false};
+    closeSheet(); await saveRun(r); toast('Corrida adicionada');
+  };
+}
+
+function openDetail(id){
+  const r=runs.find(x=>x.id===id); if(!r) return;
+  const d=new Date(r.start); const km=r.distance/1000;
+  const rest = r.splits&&r.splits.length ? { dist: r.distance - r.splits.length*1000, time: r.duration - r.splits.reduce((a,b)=>a+b,0) } : null;
+  openSheet(`
+    <div class="row"><div><h2 style="margin:0"></h2><div class="d" style="color:var(--mut);font-size:13px;margin-top:2px">${d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})} · ${pad(d.getHours())}:${pad(d.getMinutes())}</div></div></div>
+    ${r.route&&r.route.length?'<div class="mapbox" style="height:220px;margin-top:14px"><canvas id="dMap"></canvas></div>':''}
+    <div class="grid3"><div class="stat"><div class="lbl">Distância</div><div class="v num" style="font-size:28px">${fmtKm(r.distance)}</div><div class="u">km</div></div>
+    <div class="stat"><div class="lbl">Tempo</div><div class="v num" style="font-size:28px">${fmtTime(r.duration)}</div><div class="u">&nbsp;</div></div>
+    <div class="stat"><div class="lbl">Ritmo</div><div class="v num" style="font-size:28px">${fmtPace(r.duration/km)}</div><div class="u">/km</div></div></div>
+    <div class="grid3" style="grid-template-columns:1fr 1fr"><div class="stat"><div class="lbl">Velocidade</div><div class="v num" style="font-size:24px">${(km/(r.duration/3600)).toFixed(1).replace('.',',')}</div><div class="u">km/h</div></div>
+    <div class="stat"><div class="lbl">Origem</div><div class="v" style="font-size:16px;padding:8px 0">${r.gps?'GPS':'Manual'}</div></div></div>
+    <p id="dNote" style="color:var(--mut);font-size:14px;margin:14px 0 0"></p>
+    ${r.splits&&r.splits.length?'<div class="card" style="margin-top:14px"><div class="lbl" style="margin-bottom:6px">Parciais</div>'+splitsTable(r.splits,rest)+'</div>':''}
+    <div class="actions"><button class="btn danger" id="dDel">Excluir</button><button class="btn sec" id="dClose">Fechar</button></div>`);
+  $('#sheet h2').textContent=r.title; $('#dNote').textContent=r.note||'';
+  if(r.route&&r.route.length) requestAnimationFrame(()=>drawRoute($('#dMap'), r.route, {grid:true}));
+  $('#dClose').onclick=closeSheet;
+  $('#dDel').onclick=()=>{ const b=$('#dDel'); b.textContent='Confirmar exclusão'; b.onclick=async()=>{ closeSheet(); await deleteRun(id); toast('Corrida excluída'); }; };
+}
+
+// ---------- activities ----------
+function weekStart(t){ const d=new Date(t); d.setHours(0,0,0,0); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d.getTime(); }
+function renderActs(){
+  const ws=weekStart(Date.now()); const wk=runs.filter(r=>r.start>=ws);
+  const km=wk.reduce((a,r)=>a+r.distance,0)/1000, sec=wk.reduce((a,r)=>a+r.duration,0);
+  $('#wkKm').textContent=km.toLocaleString('pt-BR',{maximumFractionDigits:1});
+  $('#wkTime').textContent= sec>=3600? `${Math.floor(sec/3600)}h${pad(Math.floor(sec%3600/60))}` : `${Math.floor(sec/60)}min`;
+  $('#wkRuns').textContent=wk.length;
+  // 8 semanas
+  const W=7*864e5, weeks=[]; for(let i=7;i>=0;i--){ const s=ws-i*W; weeks.push({s, km: runs.filter(r=>weekStart(r.start)===weekStart(s)).reduce((a,r)=>a+r.distance,0)/1000}); }
+  const mx=Math.max(1,...weeks.map(w=>w.km));
+  $('#bars').innerHTML=weeks.map((w,i)=>{ const d=new Date(w.s); return `<div class="b ${i===7?'cur':''}" title="${w.km.toFixed(1)} km"><div class="f" style="height:${Math.round(w.km/mx*70)}px"></div><div class="t">${pad(d.getDate())}/${pad(d.getMonth()+1)}</div></div>`; }).join('');
+  // recordes
+  const pr=$('#prCard');
+  if(runs.length){
+    const longest=runs.reduce((a,r)=>r.distance>a.distance?r:a);
+    const best5=runs.filter(r=>r.distance>=4900).map(r=>({r,p:r.duration/(r.distance/1000)})).sort((a,b)=>a.p-b.p)[0];
+    const fastest=runs.filter(r=>r.distance>=1000).map(r=>({r,p:r.duration/(r.distance/1000)})).sort((a,b)=>a.p-b.p)[0];
+    const tot=runs.reduce((a,r)=>a+r.distance,0)/1000;
+    pr.style.display='block';
+    pr.innerHTML=`<div class="lbl" style="margin-bottom:10px">Recordes e totais</div>
+      <div class="wk" style="grid-template-columns:1fr 1fr">
+        <div><div class="v num" style="font-size:24px">${fmtKm(longest.distance)} km</div><div class="lbl" style="font-size:10px">Maior distância</div></div>
+        <div><div class="v num" style="font-size:24px">${fastest?fmtPace(fastest.p):'--:--'}</div><div class="lbl" style="font-size:10px">Melhor ritmo (≥1 km)</div></div>
+        <div><div class="v num" style="font-size:24px">${best5?fmtTime(best5.p*5):'--'}</div><div class="lbl" style="font-size:10px">5 km estimado</div></div>
+        <div><div class="v num" style="font-size:24px">${tot.toLocaleString('pt-BR',{maximumFractionDigits:1})} km</div><div class="lbl" style="font-size:10px">Total (${runs.length} corridas)</div></div>
+      </div>`;
+  } else pr.style.display='none';
+  // lista
+  const L=$('#list'); L.innerHTML='';
+  if(!runs.length){ L.innerHTML='<div class="empty">Nenhuma corrida ainda.<br>Vá em <b>Gravar</b> e toque em Iniciar — ou adicione uma corrida manual.</div>'; return; }
+  for(const r of runs){
+    const d=new Date(r.start), el=document.createElement('div'); el.className='card act';
+    el.innerHTML=`<div class="row"><div style="min-width:0"><h3></h3><div class="d">${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})} · ${pad(d.getHours())}:${pad(d.getMinutes())}${r.gps?'':' · manual'}</div></div>${r.route&&r.route.length?'<canvas></canvas>':''}</div>
+      <div class="m"><div><div class="lbl" style="font-size:10px">Distância</div><div class="v num">${fmtKm(r.distance)} km</div></div>
+      <div><div class="lbl" style="font-size:10px">Ritmo</div><div class="v num">${fmtPace(r.duration/(r.distance/1000))} /km</div></div>
+      <div><div class="lbl" style="font-size:10px">Tempo</div><div class="v num">${fmtTime(r.duration)}</div></div></div>`;
+    el.querySelector('h3').textContent=r.title;
+    el.onclick=()=>openDetail(r.id); L.appendChild(el);
+    const cv=el.querySelector('canvas'); if(cv) requestAnimationFrame(()=>drawRoute(cv, r.route, {pad:8, lw:2.5}));
+  }
+}
+
+// ---------- nav ----------
+function go(v){ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v)); if(v==='act') renderActs(); else drawLive(); }
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+$('#addManual').onclick=openManual;
+
+// ---------- boot ----------
+restore(); renderCtrls(); updateLive(); renderStore(); renderActs(); requestAnimationFrame(drawLive);
+if(S.gpsOn){ permState().then(st=>{ if(st==='granted') enableGps(); else setGps('idle','GPS ligado','Toque em Iniciar ou no botão para ativar'); }); }
+else setGps('idle','GPS desligado');
+initDb();
+})();
+</script>
+</body>
+</html>
