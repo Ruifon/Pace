@@ -148,8 +148,8 @@ input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent
     <div class="card counter">
       <div class="row"><div class="lbl" id="wSetLbl">Série 1</div><div class="lbl" id="wState">Pronto</div></div>
       <div class="reps num" id="wReps">0</div>
-      <div class="lbl" style="text-align:center;margin-top:-6px">repetições</div>
-      <div class="grid3" style="margin-top:14px">
+      <div class="lbl" style="text-align:center;margin-top:-6px" id="wRepsLbl">repetições</div>
+      <div class="grid3" style="margin-top:14px" id="wGrid">
         <div class="stat"><div class="lbl" id="wPhaseLbl">Série</div><div class="v num" style="font-size:28px" id="wPhase">00:00</div></div>
         <div class="stat"><div class="lbl">Treino</div><div class="v num" style="font-size:28px" id="wTotal">00:00</div></div>
         <div class="stat"><div class="lbl">Total reps</div><div class="v num" style="font-size:28px" id="wSum">0</div></div>
@@ -171,7 +171,7 @@ input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent
         <div><div class="v num" id="wkRuns">0</div><div class="u lbl" style="font-size:10px">corridas</div></div>
       </div>
       <div class="bars" id="bars"></div>
-      <div class="store" style="margin:8px 0 0;text-align:left">Km por semana (segunda a domingo) — a data é o início da semana</div>
+      <div class="store" style="margin:8px 0 0;text-align:left">Km por semana (domingo a sábado) — a data é o início da semana</div>
     </div>
     <div class="card" id="prCard" style="display:none"></div>
     <div id="list"></div>
@@ -208,7 +208,8 @@ const ls = { get(k){ try{return JSON.parse(localStorage.getItem(k))}catch(e){ret
 let weight = +ls.get('pace_weight') || 0;
 const kgUse = () => weight || 70;
 const runKcal = m => kgUse() * (m/1000) * 1.036;
-const wkKcal = (activeSec, restSec) => kgUse() * (8*activeSec + 3*restSec) / 3600;
+// Treino: kcal por repetição (barra ≈0,0056·kg; abdominal remador ≈0,0025·kg) + 1,5 MET pelo tempo total
+const wkKcal = (ex, reps, sec) => kgUse() * (reps*(ex==='barra'?0.0056:0.0025) + 1.5*sec/3600);
 const isRun = r => r.kind !== 'workout';
 function renderWeight(){ const b=$('#wBtn'); if(b) b.textContent = weight ? `${weight} kg ✎` : '70 kg (padrão) — ajustar ✎'; }
 function openWeight(){
@@ -513,7 +514,7 @@ function openDetail(id){
 }
 
 // ---------- activities ----------
-function weekStart(t){ const d=new Date(t); d.setHours(0,0,0,0); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d.getTime(); }
+function weekStart(t){ const d=new Date(t); d.setHours(0,0,0,0); d.setDate(d.getDate()-d.getDay()); return d.getTime(); }
 function renderActs(){
   const R = items.filter(isRun);
   const ws=weekStart(Date.now()); const wk=R.filter(r=>r.start>=ws);
@@ -559,11 +560,11 @@ function renderActs(){
 
 // ---------- treino: abdominal remador / barra fixa ----------
 const EX = { remador:'Abdominal remador', barra:'Barra fixa' };
-const W = { ex: ls.get('pace_ex') || 'remador', status:'idle', start:0, sets:[], cur:0, phaseAt:0, timer:null };
+const W = { ex: ls.get('pace_ex') || 'remador', status:'idle', mode:'count', start:0, sets:[], cur:0, phaseAt:0, timer:null };
 const wSum = () => W.sets.reduce((a,s)=>a+s.reps,0) + (W.status==='set'?W.cur:0);
 function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
 
-function wStart(){ W.status='set'; W.start=Date.now(); W.phaseAt=Date.now(); W.sets=[]; W.cur=0; wakeOn(); wLoop(); renderWk(); }
+function wStart(mode){ W.mode=mode||'count'; W.status='set'; W.start=Date.now(); W.phaseAt=Date.now(); W.sets=[]; W.cur=0; wakeOn(); wLoop(); renderWk(); }
 function wPlus(d){ if(W.status!=='set') return; W.cur=Math.max(0,W.cur+d); buzz(d>0?18:8); wDraw(); }
 function wEndSet(){
   if(W.status!=='set') return;
@@ -577,12 +578,13 @@ function wNextSet(){
   W.status='set'; W.phaseAt=Date.now(); renderWk();
 }
 function wFinish(){
+  if(W.mode==='timer') return wFinishTimer();
   if(W.status==='set') wEndSet();
   clearInterval(W.timer); W.timer=null;
   const end=Date.now(); const total=Math.round((end-W.start)/1000);
   const active=W.sets.reduce((a,s)=>a+s.sec,0), reps=W.sets.reduce((a,s)=>a+s.reps,0);
   if(!reps){ wReset(); toast('Treino sem repetições — descartado'); return; }
-  const rest=Math.max(0,total-active), kcal=Math.round(wkKcal(active,rest));
+  const kcal=Math.round(wkKcal(W.ex,reps,total));
   $('#sheet').dataset.lock='1';
   openSheet(`<h2>${EX[W.ex]}</h2>
     <div class="grid2" style="margin-top:0">
@@ -595,19 +597,53 @@ function wFinish(){
     <div class="actions"><button class="btn danger" id="wDis">Descartar</button><button class="btn pri" id="wSave">Salvar treino</button></div>`);
   $('#wDis').onclick=()=>{ const b=$('#wDis'); b.textContent='Toque de novo'; b.onclick=()=>{ delete $('#sheet').dataset.lock; closeSheet(); wReset(); toast('Treino descartado'); }; };
   $('#wSave').onclick=async()=>{
-    const r={ id:'w'+W.start.toString(36)+Math.random().toString(36).slice(2,6), kind:'workout', ex:W.ex, start:W.start, duration:total, active, reps, sets:W.sets.slice(), kcal };
+    const r={ id:'w'+W.start.toString(36)+Math.random().toString(36).slice(2,6), kind:'workout', mode:'count', ex:W.ex, start:W.start, duration:total, active, reps, sets:W.sets.slice(), kcal };
     delete $('#sheet').dataset.lock; closeSheet(); wReset(); await saveRun(r); toast('Treino salvo 💪');
   };
 }
-function wReset(){ clearInterval(W.timer); W.timer=null; W.status='idle'; W.sets=[]; W.cur=0; if(S.status==='idle') wakeOff(); renderWk(); }
+function parseReps(v){ const n=String(v).match(/\d+/g); return n? n.map(Number).filter(x=>x>0&&x<1000) : []; }
+function wFinishTimer(){
+  clearInterval(W.timer); W.timer=null;
+  const total=Math.round((Date.now()-W.start)/1000);
+  $('#sheet').dataset.lock='1';
+  openSheet(`<h2>${EX[W.ex]}</h2>
+    <div class="grid2" style="margin-top:0">
+      <div class="stat"><div class="lbl">Tempo</div><div class="v num">${fmtTime(total)}</div></div>
+      <div class="stat"><div class="lbl">Calorias</div><div class="v num" id="tkK">—</div><div class="u">kcal estimadas</div></div>
+    </div>
+    <label class="f">Repetições por série</label>
+    <input id="tkR" inputmode="numeric" placeholder="Ex.: 15, 12, 10  — ou só o total, ex.: 37" autocomplete="off">
+    <div class="store" id="tkInfo" style="text-align:left;margin:6px 0 0">Separe as séries por vírgula ou espaço.</div>
+    <div class="actions"><button class="btn danger" id="tkD">Descartar</button><button class="btn sec" id="tkB">Voltar</button><button class="btn pri" id="tkS">Salvar</button></div>`);
+  const upd=()=>{ const a=parseReps($('#tkR').value), t=a.reduce((x,y)=>x+y,0);
+    $('#tkK').textContent = t? Math.round(wkKcal(W.ex,t,total)) : '—';
+    $('#tkInfo').textContent = t? `${t} repetições em ${a.length} série${a.length>1?'s':''}` : 'Separe as séries por vírgula ou espaço.'; };
+  $('#tkR').addEventListener('input',upd); setTimeout(()=>{ try{$('#tkR').focus()}catch(e){} },50);
+  $('#tkB').onclick=()=>{ delete $('#sheet').dataset.lock; closeSheet(); wLoop(); };
+  $('#tkD').onclick=()=>{ const b=$('#tkD'); b.textContent='Toque de novo'; b.onclick=()=>{ delete $('#sheet').dataset.lock; closeSheet(); wReset(); toast('Treino descartado'); }; };
+  $('#tkS').onclick=async()=>{
+    const a=parseReps($('#tkR').value), reps=a.reduce((x,y)=>x+y,0);
+    if(!reps){ $('#tkR').style.outline='2px solid var(--bad)'; return; }
+    const r={ id:'w'+W.start.toString(36)+Math.random().toString(36).slice(2,6), kind:'workout', mode:'timer', ex:W.ex, start:W.start, duration:total, active:total, reps, sets:a.map(n=>({reps:n,sec:0,rest:0})), kcal:Math.round(wkKcal(W.ex,reps,total)) };
+    delete $('#sheet').dataset.lock; closeSheet(); wReset(); await saveRun(r); toast('Treino salvo 💪');
+  };
+}
+function wReset(){ clearInterval(W.timer); W.timer=null; W.status='idle'; W.mode='count'; W.sets=[]; W.cur=0; if(S.status==='idle') wakeOff(); renderWk(); }
 function wLoop(){ clearInterval(W.timer); W.timer=setInterval(wDraw, 250); }
 
 function setsTable(sets){
   let h='<table><tr><th>Série</th><th>Reps</th><th>Tempo</th><th>Descanso</th></tr>';
-  sets.forEach((s,i)=>{ h+=`<tr><td class="num">${i+1}</td><td class="num" style="font-weight:600">${s.reps}</td><td class="num">${fmtTime(s.sec)}</td><td class="num" style="color:var(--mut)">${s.rest?fmtTime(s.rest):'—'}</td></tr>`; });
+  sets.forEach((s,i)=>{ h+=`<tr><td class="num">${i+1}</td><td class="num" style="font-weight:600">${s.reps}</td><td class="num">${s.sec?fmtTime(s.sec):'—'}</td><td class="num" style="color:var(--mut)">${s.rest?fmtTime(s.rest):'—'}</td></tr>`; });
   return h+'</table>';
 }
 function wDraw(){
+  if(W.mode==='timer' && W.status!=='idle'){
+    const tot=(Date.now()-W.start)/1000;
+    $('#wReps').textContent=fmtTime(tot); $('#wReps').style.fontSize='88px'; $('#wReps').style.color='';
+    $('#wRepsLbl').textContent='tempo de treino'; $('#wSetLbl').textContent=EX[W.ex]; $('#wState').textContent='● Cronometrando'; $('#wState').style.color='var(--acc2)';
+    $('#wGrid').style.display='none'; return;
+  }
+  $('#wReps').style.fontSize=''; $('#wRepsLbl').textContent='repetições'; $('#wGrid').style.display='';
   const now=Date.now(), ph=W.status==='idle'?0:(now-W.phaseAt)/1000, tot=W.status==='idle'?0:(now-W.start)/1000;
   $('#wReps').textContent = W.status==='rest' ? (W.sets.length?W.sets[W.sets.length-1].reps:0) : W.cur;
   $('#wReps').style.color = W.status==='rest' ? 'var(--mut)' : '';
@@ -622,7 +658,8 @@ function renderWk(){
   const c=$('#wCtrls'); c.innerHTML='';
   const box=document.createElement('div'); box.className='wbtns'; c.appendChild(box);
   const add=(html,cls,fn)=>{ const b=document.createElement('button'); b.className=cls; b.innerHTML=html; b.onclick=fn; box.appendChild(b); return b; };
-  if(W.status==='idle') add('Iniciar treino','btn pri block',wStart).style.width='100%';
+  if(W.status==='idle'){ add('Iniciar contando no +1','btn pri',()=>wStart('count')).style.flex='1'; add('Só cronômetro','btn sec',()=>wStart('timer')).style.flex='1'; box.style.flexWrap='nowrap'; const h=document.createElement('div'); h.className='store'; h.style.margin='10px 0 0'; h.textContent='No modo só cronômetro você informa as repetições ao finalizar.'; c.appendChild(h); }
+  else if(W.mode==='timer'){ const b=add('Finalizar e informar repetições','btn pri',wFinish); b.style.width='100%'; const x=add('Cancelar','btn ghost',()=>{ wReset(); toast('Treino cancelado'); }); x.style.width='100%'; }
   else if(W.status==='set'){ add('−1','minus',()=>wPlus(-1)); add('+1','plus',()=>wPlus(1)); const r=document.createElement('div'); r.style.cssText='display:flex;gap:10px;width:100%'; box.appendChild(r); const b1=document.createElement('button'); b1.className='btn sec'; b1.style.flex='1'; b1.textContent='Fim da série'; b1.onclick=wEndSet; const b2=document.createElement('button'); b2.className='btn ghost'; b2.style.flex='1'; b2.textContent='Finalizar treino'; b2.onclick=wFinish; r.append(b1,b2); }
   else { const r=document.createElement('div'); r.style.cssText='display:flex;gap:10px;width:100%'; box.appendChild(r); const b1=document.createElement('button'); b1.className='btn pri'; b1.style.flex='1'; b1.textContent='Próxima série'; b1.onclick=wNextSet; const b2=document.createElement('button'); b2.className='btn sec'; b2.style.flex='1'; b2.textContent='Finalizar treino'; b2.onclick=wFinish; r.append(b1,b2); }
   const st=$('#wSets');
@@ -644,7 +681,7 @@ function renderWkHist(){
       <div><div class="v num" style="font-size:26px">${bestDay||'—'}</div><div class="lbl" style="font-size:10px">Recorde num treino</div></div>
     </div>`;
   const L=$('#wkList'); L.innerHTML='';
-  if(!mine.length){ L.innerHTML=`<div class="empty">Nenhum treino de ${EX[W.ex].toLowerCase()} ainda.<br>Toque em <b>Iniciar treino</b> e use o <b>+1</b> a cada repetição.</div>`; return; }
+  if(!mine.length){ L.innerHTML=`<div class="empty">Nenhum treino de ${EX[W.ex].toLowerCase()} ainda.<br>Use o <b>+1</b> a cada repetição ou o <b>Só cronômetro</b> e informe as repetições no final.</div>`; return; }
   for(const x of mine){
     const d=new Date(x.start), el=document.createElement('div'); el.className='card act';
     el.innerHTML=`<div class="d">${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})} · ${pad(d.getHours())}:${pad(d.getMinutes())}</div>
@@ -660,7 +697,7 @@ function openWkDetail(id){
   const x=items.find(i=>i.id===id); if(!x) return; const d=new Date(x.start);
   openSheet(`<h2>${EX[x.ex]||'Treino'}</h2><div style="color:var(--mut);font-size:13px;margin-top:-8px">${d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})} · ${pad(d.getHours())}:${pad(d.getMinutes())}</div>
     <div class="grid2"><div class="stat"><div class="lbl">Repetições</div><div class="v num">${x.reps}</div><div class="u">${x.sets.length} séries</div></div>
-    <div class="stat"><div class="lbl">Tempo</div><div class="v num">${fmtTime(x.duration)}</div><div class="u">${fmtTime(x.active)} em série</div></div>
+    <div class="stat"><div class="lbl">Tempo</div><div class="v num">${fmtTime(x.duration)}</div><div class="u">${x.mode==='timer'?'só cronômetro':fmtTime(x.active)+' em série'}</div></div>
     <div class="stat"><div class="lbl">Média/série</div><div class="v num">${(x.reps/x.sets.length).toFixed(1).replace('.',',')}</div><div class="u">reps</div></div>
     <div class="stat"><div class="lbl">Calorias</div><div class="v num">${x.kcal}</div><div class="u">kcal estimadas</div></div></div>
     <div class="card" style="margin-top:12px">${setsTable(x.sets)}</div>
