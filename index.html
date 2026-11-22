@@ -171,6 +171,7 @@ input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent
         <div><div class="v num" id="wkRuns">0</div><div class="u lbl" style="font-size:10px">corridas</div></div>
       </div>
       <div class="bars" id="bars"></div>
+      <div class="store" style="margin:8px 0 0;text-align:left">Km por semana (segunda a domingo) — a data é o início da semana</div>
     </div>
     <div class="card" id="prCard" style="display:none"></div>
     <div id="list"></div>
@@ -523,7 +524,7 @@ function renderActs(){
   // 8 semanas
   const W=7*864e5, weeks=[]; for(let i=7;i>=0;i--){ const s=ws-i*W; weeks.push({s, km: R.filter(r=>weekStart(r.start)===weekStart(s)).reduce((a,r)=>a+r.distance,0)/1000}); }
   const mx=Math.max(1,...weeks.map(w=>w.km));
-  $('#bars').innerHTML=weeks.map((w,i)=>{ const d=new Date(w.s); return `<div class="b ${i===7?'cur':''}" title="${w.km.toFixed(1)} km"><div class="f" style="height:${Math.round(w.km/mx*70)}px"></div><div class="t">${pad(d.getDate())}/${pad(d.getMonth()+1)}</div></div>`; }).join('');
+  $('#bars').innerHTML=weeks.map((w,i)=>{ const d=new Date(w.s); return `<div class="b ${i===7?'cur':''}" title="${w.km.toFixed(1)} km"><div class="f" style="height:${Math.round(w.km/mx*70)}px"></div><div class="t">${i===7?'Atual':pad(d.getDate())+'/'+pad(d.getMonth()+1)}</div></div>`; }).join('');
   // recordes
   const pr=$('#prCard');
   if(R.length){
@@ -537,7 +538,7 @@ function renderActs(){
         <div><div class="v num" style="font-size:24px">${fmtKm(longest.distance)} km</div><div class="lbl" style="font-size:10px">Maior distância</div></div>
         <div><div class="v num" style="font-size:24px">${fastest?fmtPace(fastest.p):'--:--'}</div><div class="lbl" style="font-size:10px">Melhor ritmo (≥1 km)</div></div>
         <div><div class="v num" style="font-size:24px">${best5?fmtTime(best5.p*5):'--'}</div><div class="lbl" style="font-size:10px">5 km estimado</div></div>
-        <div><div class="v num" style="font-size:24px">${tot.toLocaleString('pt-BR',{maximumFractionDigits:1})} km</div><div class="lbl" style="font-size:10px">Total (${R.length} corridas)</div></div>
+        <div><div class="v num" style="font-size:24px">${tot.toLocaleString('pt-BR',{maximumFractionDigits:1})} km</div><div class="lbl" style="font-size:10px">Total (${R.length} corrida${R.length===1?'':'s'})</div></div>
       </div>`;
   } else pr.style.display='none';
   // lista
