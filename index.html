@@ -59,8 +59,11 @@ main{flex:1;overflow:auto;padding:0 16px calc(92px + var(--safe-b))}
 .setdots button{min-width:56px;height:56px;padding:0 6px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--mut);font:600 14px Inter,sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1}
 .setdots button b{font-size:17px;font-family:"Barlow Condensed",sans-serif}
 .setdots button small{font-size:10px;font-weight:500;opacity:.85}
-.eximg{margin:-16px -16px 12px;border-radius:16px 16px 0 0;overflow:hidden;background:#fff;aspect-ratio:16/10}
-.eximg img{width:100%;height:100%;object-fit:contain;display:block}
+.eximg{margin:-16px -16px 12px;border-radius:16px 16px 0 0;overflow:hidden;background:#f6f6f6;height:190px}
+.eximg img{width:100%;height:100%;object-fit:contain;display:block;cursor:zoom-in}
+.eximg.big{margin:8px 0 12px;border-radius:14px;height:auto;max-height:60vh}
+.eximg.big img{height:auto;max-height:60vh;cursor:default}
+.taf-img{margin:-4px 0 12px;border-radius:14px;height:150px}
 .swlist .eximg{margin:0;width:64px;height:64px;aspect-ratio:auto;border-radius:10px;flex:none}
 .cyc{cursor:pointer}
 .cyc.due{border-color:var(--acc2);background:color-mix(in srgb,var(--acc2) 10%,var(--card))}
@@ -222,6 +225,7 @@ input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent
       <button data-ex="remador" class="on">Abdominal remador</button>
       <button data-ex="barra">Barra fixa</button>
     </div>
+    <div id="tafImgBox"></div>
     <div class="card counter">
       <div class="row"><div class="lbl" id="wSetLbl">Série 1</div><div class="lbl" id="wState">Pronto</div></div>
       <div class="reps num" id="wReps">0</div>
@@ -759,6 +763,7 @@ function wDraw(){
   $('#wState').style.color = W.status==='set' ? 'var(--acc)' : '';
 }
 function renderWk(){
+  try{ const tb=$('#tafImgBox'); if(tb && tb.dataset.ex!==W.ex+avatar()){ tb.dataset.ex=W.ex+avatar(); tb.innerHTML=exImg(W.ex).replace('class="eximg"','class="eximg taf-img"'); wireImgs(tb); } }catch(e){}
   document.querySelectorAll('#exSel button').forEach(b=>{ b.classList.toggle('on', b.dataset.ex===W.ex); b.disabled = W.status!=='idle' && b.dataset.ex!==W.ex; });
   const c=$('#wCtrls'); c.innerHTML='';
   const box=document.createElement('div'); box.className='wbtns'; c.appendChild(box);
@@ -1038,10 +1043,12 @@ function swapKey(di,j){ return `${G.mode}:${di}:${j}`; }
 function exId(plan, di, j){ const k=swapKey(di,j); return swapsTmp[k] || swapsPerm[k] || plan.days[di].ex[j][0]; }
 function exName(id, plan){ const e=EXL[id]; return plan && plan.home ? e.h : e.n; }
 function avatar(){ const a=ls.get('pace_avatar'); if(a) return a; const p=ls.get('pace_profile'); return p&&p.sexo==='F'?'F':'M'; }
-function exImg(id){ return `<div class="eximg"><img alt="" loading="lazy" data-id="${id}" data-i="0" src="img/ex/${id}-${avatar().toLowerCase()}.webp"></div>`; }
+function imgSeq(id){ const g=avatar().toLowerCase(), o=g==='m'?'f':'m'; return [`${id}-${g}.webp`,`${id}-${g}.png`,`${id}-${o}.webp`,`${id}-${o}.png`].map(f=>'img/ex/'+f); }
+function exImg(id){ return `<div class="eximg"><img alt="" loading="lazy" data-id="${id}" data-i="0" src="${imgSeq(id)[0]}"></div>`; }
 function wireImgs(root){
   root.querySelectorAll('.eximg img').forEach(img=>{
-    img.onerror=()=>{ const ext=['webp','gif','png','jpg']; const i=+img.dataset.i+1; if(i<ext.length){ img.dataset.i=i; img.src=`img/ex/${img.dataset.id}-${avatar().toLowerCase()}.${ext[i]}`; } else img.parentElement.remove(); };
+    img.onerror=()=>{ const seq=imgSeq(img.dataset.id); const i=+img.dataset.i+1; if(i<seq.length){ img.dataset.i=i; img.src=seq[i]; } else img.parentElement.remove(); };
+    if(!img.closest('.swlist')) img.onclick=(ev)=>{ ev.stopPropagation(); const e=EXL[img.dataset.id]; openSheet(`<h2>${e?e.n:''}</h2><div class="eximg big"><img src="${img.src}" alt=""></div><div class="tip" style="font-size:14px;color:var(--mut);line-height:1.45">${e?e.t:''}</div><div class="actions"><button class="btn sec" id="imgC">Fechar</button></div>`); $('#imgC').onclick=closeSheet; };
   });
 }
 
