@@ -62,6 +62,11 @@ main{flex:1;overflow:auto;padding:0 16px calc(92px + var(--safe-b))}
 .eximg{margin:-16px -16px 12px;border-radius:16px 16px 0 0;overflow:hidden;background:#fff;aspect-ratio:16/10}
 .eximg img{width:100%;height:100%;object-fit:contain;display:block}
 .swlist .eximg{margin:0;width:64px;height:64px;aspect-ratio:auto;border-radius:10px;flex:none}
+.cyc{cursor:pointer}
+.cyc.due{border-color:var(--acc2);background:color-mix(in srgb,var(--acc2) 10%,var(--card))}
+.cybar{height:6px;border-radius:3px;background:var(--card2);margin-top:10px;overflow:hidden}
+.cybar span{display:block;height:100%;background:var(--acc)}
+.ex .tag.up{background:color-mix(in srgb,var(--acc2) 18%,transparent);color:var(--acc2);font-weight:600}
 .swapbtn{flex:none;background:none;border:1px solid var(--line);color:var(--acc2);border-radius:9px;padding:6px 9px;font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
 .stepper{display:flex;gap:10px;align-items:center}
 .stepper button{width:56px;height:56px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font:600 26px Inter,sans-serif;cursor:pointer;flex:none}
@@ -945,6 +950,81 @@ function sessKcal(s, plan){
   return kgUse()*3.5*((Date.now()-s.start)/3600000) + w;
 }
 
+
+// ---------- ciclo mensal: fases, rodízio de exercícios e progressão ----------
+const PHASES = [
+  {k:'base', n:'Base', d:'Técnica e consistência: séries e repetições do plano original.'},
+  {k:'volume', n:'Volume', d:'+1 série nos exercícios acessórios para estimular mais o músculo.'},
+  {k:'intens', n:'Intensidade', d:'Exercícios principais com menos repetições e mais carga; descanso maior.'},
+];
+const CYC_DAYS = 28;
+function cycles(){ return ls.get('pace_cycle') || {}; }
+function cycleOf(mode){ const c=cycles(); if(!c[mode]){ c[mode]={n:1, start:Date.now(), hist:[]}; ls.set('pace_cycle',c); } return c[mode]; }
+function phaseOf(n){ return PHASES[(n-1)%PHASES.length]; }
+function lowerReps(rp){ const m=String(rp).match(/^(\d+)(?:-(\d+))?$/); if(!m) return rp; const a=+m[1], b=+(m[2]||m[1]); if(a>=10) return '6-8'; if(a>=6) return '5-6'; return '3-5'; }
+function effPlan(base, mode, nOv){
+  if(!base) return base; const c=cycleOf(mode), n=nOv||c.n, ph=phaseOf(n);
+  const P=JSON.parse(JSON.stringify(base)); P.cycle=n; P.phase=ph;
+  P.days.forEach(d=>{
+    const used=new Set(d.ex.map(e=>e[0]));
+    d.ex.forEach((e,j)=>{
+      const [id]=e;
+      // rodízio: a partir do 2º mês, acessórios alternam entre o original e os equivalentes
+      if(j>=2 && n>1){ const alts=(EXL[id].a||[]).filter(x=>!used.has(x) && !(P.home && !EXL[x].h)); const opts=[id,...alts]; const pick=opts[(n-1)%opts.length]; if(pick!==id){ used.delete(id); used.add(pick); e[0]=pick; e.push(id); if(EXL[pick].s && !EXL[id].s) e[2]='40 s'; else if(!EXL[pick].s && EXL[id].s) e[2]='15'; if(pick==='barra') e[2]='máx'; } }
+      const comp = j<2 && !EXL[e[0]].s;
+      if(ph.k==='volume' && !comp) e[1]=Math.min(5,e[1]+1);
+      if(ph.k==='intens' && comp){ e[2]=lowerReps(e[2]); e[3]=e[3]+30; }
+    });
+  });
+  return P;
+}
+// progressão dupla: bateu a meta de reps em todas as séries da última vez → sobe carga (ou reps)
+function lastPerf(id){ for(const x of items){ if(x.kind==='workout' && x.ex==='gym' && x.exs){ const e=x.exs.find(y=>y.id===id); if(e) return e.sets; } } return null; }
+function suggest(id, rp){
+  const L=lastPerf(id); const tgt=repsNum(String(rp).split('-').pop()); if(!L||!tgt) return null;
+  const hit=L.every(v=>v.r>=tgt); if(!hit) return null;
+  const kg=Math.max(...L.map(v=>v.kg||0));
+  if(kg>0){ const inc= kg<20?1 : kg<60?2.5 : 5; return {kg: kg+inc, txt:`↑ tente ${String(kg+inc).replace('.',',')} kg`}; }
+  if(EXL[id].s) return {txt:'↑ tente +10 s'};
+  return {txt:'↑ tente +2 reps'};
+}
+function monthStats(mode, since){
+  const hs=items.filter(x=>x.kind==='workout' && x.ex==='gym' && x.plan===mode && x.start>=since).sort((a,b)=>a.start-b.start);
+  const vol=hs.reduce((a,x)=>a+(x.volume||0),0), kcal=hs.reduce((a,x)=>a+(x.kcal||0),0);
+  const first={}, last={};
+  hs.forEach(x=>(x.exs||[]).forEach(e=>{ const m=Math.max(0,...e.sets.map(v=>v.kg||0)); const r=Math.max(0,...e.sets.map(v=>v.r||0)); if(!(e.id in first)) first[e.id]={m,r}; last[e.id]={m,r}; }));
+  const evo=Object.keys(last).map(id=>({id, dkg:last[id].m-first[id].m, dr:last[id].r-first[id].r, kg:last[id].m})).filter(e=>e.dkg>0||e.dr>0).sort((a,b)=>b.dkg-a.dkg||b.dr-a.dr);
+  return {n:hs.length, vol, kcal, evo};
+}
+function openCycle(base, mode){
+  const c=cycleOf(mode), st=monthStats(mode, c.start), days=Math.floor((Date.now()-c.start)/864e5);
+  const plannedDays = mode==='custom' ? +base.profile.dias : 4; const meta=plannedDays*4;
+  const adh = Math.min(1, st.n/meta);
+  const next=effPlan(base, mode); // atual
+  const nxt=effPlan(base, mode, c.n+1);
+  const changes=[]; nxt.days.forEach((d,i)=>d.ex.forEach((e,j)=>{ const a=next.days[i].ex[j][0]; if(e[0]!==a) changes.push(`Treino ${d.k}: ${exName(a,base)} → <b>${exName(e[0],base)}</b>`); }));
+  const lvUp = mode==='custom' && adh>=.75 && base.profile.nivel!=='av';
+  const due = days>=CYC_DAYS;
+  openSheet(`<h2>${due?'🏁 Mês '+c.n+' concluído!':'Mês '+c.n+' · '+phaseOf(c.n).n}</h2>
+    <div style="color:var(--mut);font-size:13px;margin-top:-8px">${due?'Veja sua evolução e o treino do próximo mês.':`Faltam ${CYC_DAYS-days} dias para o próximo mês. Você pode avançar antes se quiser.`}</div>
+    <div class="grid2"><div class="stat"><div class="lbl">Treinos</div><div class="v num">${st.n}<span style="font-size:16px;color:var(--mut)">/${meta}</span></div><div class="u">${Math.round(adh*100)}% da meta</div></div>
+    <div class="stat"><div class="lbl">Volume</div><div class="v num">${Math.round(st.vol/1000*10)/10}</div><div class="u">toneladas levantadas</div></div></div>
+    ${st.evo.length?`<div class="card" style="margin-top:12px"><div class="lbl" style="margin-bottom:6px">Onde você evoluiu</div><table>${st.evo.slice(0,6).map(e=>`<tr><td>${exName(e.id,base)}</td><td class="num" style="color:var(--acc2);text-align:right">${e.dkg>0?'+'+String(e.dkg).replace('.',',')+' kg':'+'+e.dr+' reps'}</td></tr>`).join('')}</table></div>`:''}
+    <div class="card" style="margin-top:12px"><div class="lbl">Próximo mês: fase ${phaseOf(c.n+1).n}</div><div style="font-size:13px;color:var(--mut);margin-top:6px;line-height:1.45">${phaseOf(c.n+1).d}</div>
+    ${changes.length?`<div style="font-size:13px;margin-top:10px;line-height:1.6">${changes.slice(0,10).join('<br>')}</div>`:''}
+    ${lvUp?`<div style="font-size:13px;margin-top:10px;color:var(--acc2)">Você treinou ${Math.round(adh*100)}% dos dias: seu nível sobe para <b>${NIV[base.profile.nivel==='ini'?'int':'av']}</b> (mais séries nos principais).</div>`:''}
+    ${adh<.4&&due?`<div style="font-size:13px;margin-top:10px;color:var(--mut)">Você fez menos da metade dos treinos. Se a rotina estiver apertada, refaça o perfil com menos dias por semana.</div>`:''}
+    <div style="font-size:12px;color:var(--mut);margin-top:10px">As cargas sugeridas (↑) continuam aparecendo em cada exercício quando você bate a meta de repetições.</div></div>
+    <div class="actions"><button class="btn sec" id="cyNo">${due?'Depois':'Fechar'}</button><button class="btn pri" id="cyGo">Começar mês ${c.n+1}</button></div>`);
+  $('#cyNo').onclick=closeSheet;
+  $('#cyGo').onclick=()=>{
+    if(G.sess){ toast('Conclua ou descarte o treino em andamento'); return; }
+    const all=cycles(); const cur=all[mode]; cur.hist=(cur.hist||[]).concat([{n:cur.n, start:cur.start, end:Date.now(), treinos:st.n, volume:st.vol}]); cur.n++; cur.start=Date.now(); ls.set('pace_cycle',all);
+    if(lvUp){ const P=base.profile; P.nivel = P.nivel==='ini'?'int':'av'; ls.set('pace_profile',P); ls.set('pace_plan_custom', genPlan(P)); }
+    swapsTmp={}; ls.del('pace_swaps_tmp'); G.day[mode]=0; closeSheet(); renderGym(); toast(`Mês ${cur.n} — fase ${phaseOf(cur.n).n}! 💪`);
+  };
+}
+
 // --- estado ---
 const G = { mode: ls.get('pace_wmode') || 'taf', day: {forca:0, custom:0}, sess: ls.get('pace_gym_sess'), rest:null, restT:null, sessT:null };
 const loads = ls.get('pace_loads') || {};
@@ -984,8 +1064,9 @@ function normDone(v, rp){ return v===true ? {r:repsNum(rp)} : v; }
 const NOLOAD = id => ['prancha','remador','elevpernas','abdsupra','barra','flexao','burpee','mergulho'].includes(id);
 
 function renderGym(){
-  const box=$('#gymBox'); const plan=curPlan();
-  if(G.mode==='custom' && !plan){ renderForm(); return; }
+  const box=$('#gymBox'); const base=curPlan();
+  if(G.mode==='custom' && !base){ renderForm(); return; }
+  const plan=effPlan(base, G.mode); const cy=cycleOf(G.mode); const cyDays=Math.floor((Date.now()-cy.start)/864e5), cyDue=cyDays>=CYC_DAYS;
   const di = Math.min(G.day[G.mode]||0, plan.days.length-1); const day=plan.days[di];
   const sess = G.sess && G.sess.plan===G.mode && G.sess.day===di ? G.sess : null;
   let h='';
@@ -997,6 +1078,8 @@ function renderGym(){
   } else {
     h+=`<div class="card"><div class="lbl">Força & Definição · 4 dias</div><div style="font-size:13px;color:var(--mut);margin-top:6px;line-height:1.45">Dias A e B com cargas altas e poucas repetições (força); C e D com mais repetições, descanso curto e cardio (definição). Faça na ordem A-B-C-D, com 1 dia de folga após o B.</div></div>`;
   }
+  h+=`<div class="card cyc ${cyDue?'due':''}" id="cyCard"><div class="row"><div><div class="lbl">Mês ${cy.n} · fase ${plan.phase.n}</div><div style="font-size:12px;color:var(--mut);margin-top:4px">${cyDue?'Mês concluído! Toque para ver sua evolução e o novo treino.':plan.phase.d}</div></div><div class="num" style="font-size:20px;white-space:nowrap">${cyDue?'🏁':(CYC_DAYS-cyDays)+'d'}</div></div>
+    <div class="cybar"><span style="width:${Math.min(100,cyDays/CYC_DAYS*100)}%"></span></div></div>`;
   h+=`<div class="card"><div class="lbl">Escolha o dia</div><div class="days">${plan.days.map((d,i)=>`<button data-d="${i}" class="${i===di?'on':''}"><b>Treino ${d.k}</b>${d.f}</button>`).join('')}</div>
     <div class="sess"><div style="flex:1"><div class="lbl">${sess?'Treino em andamento':'Tempo de treino'}</div><div style="display:flex;gap:14px;align-items:baseline"><div class="num" id="gTime">${sess?fmtTime((Date.now()-sess.start)/1000):'00:00'}</div>${sess?`<div style="font-size:13px;color:var(--acc2)" id="gKcal">~${Math.round(sessKcal(sess,plan))} kcal</div>`:''}</div></div>
     ${sess?'<button class="btn ghost" id="gDiscard">Descartar</button><button class="btn pri" id="gFinish">Concluir</button>':'<div style="font-size:12px;color:var(--mut);max-width:55%;text-align:right">Toque numa série para registrar as repetições feitas.</div>'}</div></div>`;
@@ -1005,9 +1088,9 @@ function renderGym(){
     const done = sess ? (sess.done[j]||[]).map(v=>normDone(v,rp)) : [];
     const all = done.filter(Boolean).length===st;
     const unit = EXL[id].s ? 's' : '';
-    h+=`<div class="card ex ${all?'alldone':''}">${exImg(id)}<div class="row" style="align-items:flex-start"><div style="min-width:0"><h4>${j+1}. ${exName(id,plan)}</h4>${swapped?`<div class="alt">no lugar de ${exName(orig,plan)}</div>`:''}</div>
+    h+=`<div class="card ex ${all?'alldone':''}">${exImg(id)}<div class="row" style="align-items:flex-start"><div style="min-width:0"><h4>${j+1}. ${exName(id,plan)}</h4>${swapped?`<div class="alt">no lugar de ${exName(orig,plan)}</div>`:(plan.days[di].ex[j][4]?`<div class="alt">variação do mês (antes: ${exName(plan.days[di].ex[j][4],plan)})</div>`:'')}</div>
       <button class="swapbtn" data-sw="${j}">⇄ Ocupado? Trocar</button></div>
-      <div class="pres"><span class="tag">${st} × ${rp}</span><span class="tag m">descanso ${Math.floor(rs/60)}:${pad(rs%60)}</span>${(!NOLOAD(id) && loads[id]!=null)?`<span class="tag m">última carga ${String(loads[id]).replace('.',',')} kg</span>`:''}</div>
+      <div class="pres"><span class="tag">${st} × ${rp}</span><span class="tag m">descanso ${Math.floor(rs/60)}:${pad(rs%60)}</span>${(()=>{ const sg=suggest(id,rp); return sg?`<span class="tag up">${sg.txt}</span>`:((!NOLOAD(id) && loads[id]!=null)?`<span class="tag m">última carga ${String(loads[id]).replace('.',',')} kg</span>`:''); })()}</div>
       <div class="setdots">${Array.from({length:st},(_,k)=>{ const v=done[k]; return `<button data-s="${j}-${k}" class="${v?'done':''}">${v? `<b>${v.r}${unit}</b>${v.kg?`<small>${String(v.kg).replace('.',',')}kg</small>`:''}` : `<small>série</small><b>${k+1}</b>`}</button>`; }).join('')}</div>
       <div class="tip">${EXL[id].t}</div></div>`;
   });
@@ -1017,7 +1100,8 @@ function renderGym(){
   box.querySelectorAll('.days button').forEach(b=>b.onclick=()=>{ if(G.sess && G.sess.plan===G.mode){ toast('Conclua ou descarte o treino em andamento'); return; } G.day[G.mode]=+b.dataset.d; renderGym(); });
   box.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>openSet(b.dataset.s, plan, di));
   box.querySelectorAll('[data-sw]').forEach(b=>b.onclick=()=>openSwap(+b.dataset.sw, plan, di));
-  if($('#gEdit')) $('#gEdit').onclick=()=>renderForm(plan.profile);
+  $('#cyCard').onclick=()=>openCycle(base, G.mode);
+  if($('#gEdit')) $('#gEdit').onclick=()=>renderForm(base.profile);
   if($('#gFinish')) $('#gFinish').onclick=()=>finishGym(plan, di);
   if($('#gDiscard')) $('#gDiscard').onclick=()=>{ const b=$('#gDiscard'); b.textContent='Toque de novo'; b.onclick=()=>{ G.sess=null; ls.del('pace_gym_sess'); swapsTmp={}; ls.del('pace_swaps_tmp'); stopRest(); renderGym(); toast('Treino descartado'); }; };
   clearInterval(G.sessT); if(sess) G.sessT=setInterval(()=>{ const t=$('#gTime'); if(t&&G.sess){ t.textContent=fmtTime((Date.now()-G.sess.start)/1000); const k=$('#gKcal'); if(k) k.textContent='~'+Math.round(sessKcal(G.sess,plan))+' kcal'; } },1000);
@@ -1032,7 +1116,7 @@ function openSet(key, plan, di){
   const prev = sess && sess.done[j] ? sess.done[j].map(v=>normDone(v,rp)).filter(Boolean).pop() : null;
   const isT = !!EXL[id].s, noLoad = NOLOAD(id) || (plan.home && ['afundo','pelvica','bulgaro','stepup','coice'].includes(id));
   let r = cur ? cur.r : prev ? prev.r : (repsNum(rp) || 10);
-  const kg0 = cur && cur.kg!=null ? cur.kg : (loads[id] ?? '');
+  const sg = suggest(id, rp); const kg0 = cur && cur.kg!=null ? cur.kg : (sess&&prev&&prev.kg!=null ? prev.kg : (sg&&sg.kg ? sg.kg : (loads[id] ?? '')));
   openSheet(`<h2>${exName(id,plan)}</h2><div style="color:var(--mut);font-size:13px;margin-top:-8px">Série ${k+1} de ${st} · meta ${rp}</div>
     <label class="f">${isT?'Segundos feitos':'Repetições feitas'}</label>
     <div class="stepper"><button id="sm">−</button><input id="sR" inputmode="numeric" value="${r}"><button id="sp">+</button></div>
@@ -1153,6 +1237,7 @@ function renderForm(prev){
     ls.set('pace_profile',P); weight=Math.round(P.peso*10)/10; ls.set('pace_weight',weight); renderWeight();
     Object.keys(swapsPerm).filter(k=>k.startsWith('custom:')).forEach(k=>delete swapsPerm[k]); ls.set('pace_swaps',swapsPerm);
     ls.set('pace_plan_custom', genPlan(P)); G.day.custom=0;
+    { const all=cycles(); all.custom={n:1, start:Date.now(), hist:[]}; ls.set('pace_cycle',all); }
     let msg='Treino gerado!';
     if(sexChanged && !ls.get('pace_pal_user')){ applyPalette(P.sexo==='F'?'rosa':'militar'); if(P.sexo==='F') msg='Treino gerado! Paleta rosa aplicada — troque em Ajustes.'; }
     renderGym(); try{ $('main').scrollTo({top:0,behavior:'smooth'}); }catch(e){} toast(msg);
