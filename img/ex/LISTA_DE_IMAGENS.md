@@ -115,3 +115,16 @@ Coloque os arquivos nesta pasta (`img/ex/`) com o nome exato da coluna **Arquivo
 | 41 | Rosca martelo | `roscamart-f.webp` |
 | 42 | Rosca no cabo | `roscacabo-f.webp` |
 
+
+## Novos exercícios (masculino e feminino)
+
+| Exercício | Masculino | Feminino |
+|---|---|---|
+| Levantamento terra | `terra-m.webp` | `terra-f.webp` |
+| Crossover (cabo) | `crossover-m.webp` | `crossover-f.webp` |
+| Puxada pegada fechada (triângulo) | `puxadafech-m.webp` | `puxadafech-f.webp` |
+| Rosca Scott | `scott-m.webp` | `scott-f.webp` |
+| Tríceps testa | `testa-m.webp` | `testa-f.webp` |
+| Cadeira adutora | `adutora-m.webp` | `adutora-f.webp` |
+| Elevação frontal | `elevfront-m.webp` | `elevfront-f.webp` |
+| Encolhimento | `encolh-m.webp` | `encolh-f.webp` |
