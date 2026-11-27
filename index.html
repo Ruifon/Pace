@@ -87,6 +87,10 @@ main{flex:1;overflow:auto;padding:0 16px calc(92px + var(--safe-b))}
 .food em{font-style:normal;font-size:12px;color:var(--mut);white-space:nowrap}
 .food .pill{display:inline-block;color:var(--mut);font-size:10px;margin-left:6px;margin-top:0}
 .form .seg.multi button{min-width:22%;flex:0 1 auto}
+.ctypes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ctypes button{padding:9px 4px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--mut);font:600 11px Inter,sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;line-height:1.2}
+.ctypes button span{font-size:20px}
+.ctypes button.on{border-color:var(--acc2);color:var(--txt);background:color-mix(in srgb,var(--acc2) 12%,transparent)}
 .swapbtn{flex:none;background:none;border:1px solid var(--line);color:var(--acc2);border-radius:9px;padding:6px 9px;font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
 .stepper{display:flex;gap:10px;align-items:center}
 .stepper button{width:56px;height:56px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font:600 26px Inter,sans-serif;cursor:pointer;flex:none}
@@ -1013,7 +1017,8 @@ function setKcal(id, r, kg){ const e=EXL[id]; if(!e || e.s) return 0; return ((k
 function sessKcal(s, plan){
   if(!s) return 0; let w=0; const day=plan.days[s.day];
   Object.entries(s.done).forEach(([j,arr])=>{ const id=exId(plan,s.day,+j); (arr||[]).forEach(v=>{ if(v) w+=setKcal(id, v.r, v.kg); }); });
-  return kgUse()*3.5*((Date.now()-s.start)/3600000) + w;
+  const cmin=(s.cardio||[]).reduce((a,c)=>a+(c.min||0),0);
+  return kgUse()*3.5*Math.max(0,(Date.now()-s.start)/3600000 - cmin/60) + w + cardioKcal(s.cardio);
 }
 
 
@@ -1095,6 +1100,56 @@ function openCycle(base, mode){
   };
 }
 
+
+// ---------- cardio: METs do Compendium of Physical Activities (Ainsworth 2011); corrida pelo custo ~1 kcal/kg/km ----------
+const CARDIO = {
+  corrida:{n:'Corrida (rua/esteira)', ic:'🏃', d:'km'}, caminhada:{n:'Caminhada', ic:'🚶', d:'km'}, bike:{n:'Bicicleta / bike ergométrica', ic:'🚴', d:'km'},
+  eliptico:{n:'Elíptico (transport)', ic:'⛷️', d:'km'}, escada:{n:'Escada / simulador', ic:'🪜', d:null}, remo:{n:'Remo ergômetro', ic:'🚣', d:'km'},
+  natacao:{n:'Natação', ic:'🏊', d:'m'}, corda:{n:'Pular corda', ic:'🪢', d:null}, hiit:{n:'HIIT / circuito', ic:'🔥', d:null},
+};
+function cardioCalc(c){
+  const h=(c.min||0)/60, kg=kgUse(), dkm = c.type==='natacao' ? (c.dist||0)/1000 : (c.dist||0);
+  const v = dkm>0 && h>0 ? dkm/h : 0;  // km/h
+  let met;
+  switch(c.type){
+    case 'corrida': met = v ? Math.max(6, 1.036*v) : 9.8; break;
+    case 'caminhada': met = !v?3.5 : v<4?2.8 : v<5.5?3.5 : v<6.5?4.3 : v<7.5?5 : 6.5; break;
+    case 'bike': met = !v?7 : v<16?4 : v<19?6.8 : v<22?8 : v<25?10 : 12; break;
+    case 'eliptico': met=5; break; case 'escada': met=9; break;
+    case 'remo': met = !v?7 : v<11?4.8 : v<13?7 : 8.5; break;
+    case 'natacao': met = !v?6 : v<2?5.8 : v<3?8.3 : 9.8; break;
+    case 'corda': met=11.8; break; default: met=8;
+  }
+  const kcal = c.type==='corrida' && dkm>0 ? Math.max(1.036*kg*dkm, met*kg*h) : met*kg*h;
+  let pace='';
+  if(dkm>0 && c.min>0){ if(c.type==='natacao') pace=fmtPace(c.min*60/((c.dist||0)/100)).replace(/^/,'')+' /100 m'; else if(c.type==='bike') pace=v.toFixed(1).replace('.',',')+' km/h'; else pace=fmtPace(c.min*60/dkm)+' /km'; }
+  return {kcal:Math.round(kcal), pace, v};
+}
+function cardioKcal(list){ return (list||[]).reduce((a,c)=>a+cardioCalc(c).kcal,0); }
+function cardioLine(c){ const t=CARDIO[c.type]||CARDIO.hiit, k=cardioCalc(c); const d=c.dist? (c.type==='natacao'? `${c.dist} m` : `${String(c.dist).replace('.',',')} km`) : ''; return `${t.ic} ${t.n} · ${c.min} min${d?' · '+d:''}${k.pace?' · '+k.pace:''} · ${k.kcal} kcal`; }
+function openCardio(plan, di, idx){
+  const sess = G.sess && G.sess.plan===G.mode && G.sess.day===di ? G.sess : null;
+  const cur = sess && sess.cardio && idx!=null ? sess.cardio[idx] : null;
+  const st = cur ? {...cur} : {type: ls.get('pace_cardio_last') || 'corrida', min: 20, dist: ''};
+  openSheet(`<h2>${cur?'Editar cardio':'Registrar cardio'}</h2>
+    <label class="f">Tipo</label><div class="ctypes">${Object.entries(CARDIO).map(([k,t])=>`<button data-ct="${k}" class="${k===st.type?'on':''}"><span>${t.ic}</span>${t.n}</button>`).join('')}</div>
+    <div class="two" style="margin-top:4px"><div><label class="f">Minutos</label><input id="cMin" inputmode="numeric" value="${st.min||''}" placeholder="Ex.: 20"></div>
+    <div id="cDistBox"><label class="f" id="cDistLbl">Distância (km)</label><input id="cDist" inputmode="decimal" value="${String(st.dist||'').replace('.',',')}" placeholder="opcional"></div></div>
+    <div class="kv" id="cRes"></div>
+    <div class="store" style="text-align:left;margin:8px 0 0">Calorias estimadas pelo seu peso (${String(kgUse()).replace('.',',')} kg) e pela intensidade (METs do Compendium of Physical Activities). Com a distância, o cálculo fica mais preciso.</div>
+    <div class="actions">${cur?'<button class="btn danger" id="cDel">Excluir</button>':'<button class="btn sec" id="cCancel">Cancelar</button>'}<button class="btn pri" id="cOk">Salvar</button></div>`);
+  const read=()=>{ st.min=parseInt($('#cMin').value)||0; const d=parseKm($('#cDist').value); st.dist= CARDIO[st.type].d && isFinite(d) && d>0 ? d : 0; };
+  const upd=()=>{ const t=CARDIO[st.type]; $('#cDistBox').style.display = t.d ? '' : 'none'; $('#cDistLbl').textContent = t.d==='m' ? 'Distância (metros)' : 'Distância (km)';
+    read(); const k=cardioCalc(st); $('#cRes').innerHTML=`<div><b>${k.kcal||'—'}</b><span>kcal</span></div><div><b>${st.type==='bike'? (k.v&&st.min? fmtPace(st.min*60/(k.v*st.min/60)):'—') : (k.pace? k.pace.replace(/ .*/,''):'—')}</b><span>${st.type==='natacao'?'pace /100 m':'pace /km'}</span></div><div><b>${k.v? k.v.toFixed(1).replace('.',','):'—'}</b><span>km/h</span></div>`; };
+  $('#sheet').querySelectorAll('[data-ct]').forEach(b=>b.onclick=()=>{ st.type=b.dataset.ct; $('#sheet').querySelectorAll('[data-ct]').forEach(x=>x.classList.toggle('on',x===b)); upd(); });
+  $('#cMin').oninput=upd; $('#cDist').oninput=upd; upd();
+  if($('#cCancel')) $('#cCancel').onclick=closeSheet;
+  if($('#cDel')) $('#cDel').onclick=()=>{ G.sess.cardio.splice(idx,1); saveSess(); closeSheet(); renderGym(); };
+  $('#cOk').onclick=()=>{ read(); if(!(st.min>0)){ $('#cMin').style.outline='2px solid var(--bad)'; return; }
+    ensureSess(di); const L=G.sess.cardio||(G.sess.cardio=[]); const rec={type:st.type, min:st.min, dist:st.dist||0};
+    if(cur) L[idx]=rec; else L.push(rec); ls.set('pace_cardio_last', st.type); saveSess(); closeSheet(); renderGym(); toast('Cardio registrado'); };
+}
+
 // --- estado ---
 const G = { mode: ls.get('pace_wmode') || 'taf', day: {forca:0, custom:0}, sess: ls.get('pace_gym_sess'), rest:null, restT:null, sessT:null };
 const loads = ls.get('pace_loads') || {};
@@ -1168,12 +1223,17 @@ function renderGym(){
       <div class="setdots">${Array.from({length:tot},(_,k)=>{ const v=done[k]; return `<button data-s="${j}-${k}" class="${v?'done':''} ${k>=st?'extra':''}">${v? `<b>${v.r}${unit}</b>${v.kg?`<small>${String(v.kg).replace('.',',')}kg</small>`:''}` : `<small>${k>=st?'extra':'série'}</small><b>${k+1}</b>`}</button>`; }).join('')}<button class="addset" data-add="${j}">＋<small>série</small></button></div>
       <div class="tip">${EXL[id].t}</div></div>`;
   });
-  if(day.cardio) h+=`<div class="card ex"><h4>Cardio final</h4><div class="tip" style="margin-top:6px">${day.cardio}</div></div>`;
+  { const cl=(sess&&sess.cardio)||[];
+    h+=`<div class="card ex"><h4>🏃 Cardio</h4>${day.cardio?`<div class="tip" style="margin-top:6px">Sugestão: ${day.cardio}</div>`:''}
+      ${cl.map((c,i)=>`<button class="food" data-cd="${i}"><div><b>${(CARDIO[c.type]||CARDIO.hiit).n}</b><span>${cardioLine(c).split(' · ').slice(1).join(' · ')}</span></div><em>editar</em></button>`).join('')}
+      <button class="btn sec block" id="cAdd" style="margin-top:10px">＋ Registrar cardio</button></div>`; }
   h+=`<div class="card" id="gHist"></div>`;
   box.innerHTML=h; wireImgs(box);
   box.querySelectorAll('.days button').forEach(b=>b.onclick=()=>{ if(G.sess && G.sess.plan===G.mode){ toast('Conclua ou descarte o treino em andamento'); return; } G.day[G.mode]=+b.dataset.d; renderGym(); });
   box.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>openSet(b.dataset.s, plan, di));
   box.querySelectorAll('[data-sw]').forEach(b=>b.onclick=()=>openSwap(+b.dataset.sw, plan, di));
+  $('#cAdd').onclick=()=>openCardio(plan,di,null);
+  box.querySelectorAll('[data-cd]').forEach(b=>b.onclick=()=>openCardio(plan,di,+b.dataset.cd));
   box.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{ const j=+b.dataset.add; ensureSess(di); const ex=G.sess.extra||(G.sess.extra={}); ex[j]=(ex[j]||0)+1; saveSess(); renderGym(); const {st}=slot(plan,di,j); openSet(`${j}-${st+ex[j]-1}`, plan, di); });
   $('#cyCard').onclick=()=>openCycle(base, G.mode);
   if($('#gEdit')) $('#gEdit').onclick=()=>renderForm(base.profile);
@@ -1257,9 +1317,9 @@ function finishGym(plan, di){
   day.ex.forEach((e0,j)=>{ const {id,rp}=slot(plan,di,j); const d=(s.done[j]||[]).map(v=>normDone(v,rp)).filter(Boolean);
     if(d.length) exs.push({id, sets:d});
     d.forEach(v=>{ sets++; if(!EXL[id].s){ reps+=v.r; vol+=v.r*(v.kg||0); } }); });
-  if(!sets){ toast('Registre pelo menos uma série'); return; }
+  if(!sets && !(s.cardio||[]).length){ toast('Registre pelo menos uma série ou um cardio'); return; }
   const dur=Math.round((Date.now()-s.start)/1000), kcal=Math.round(sessKcal(s,plan));
-  const r={ id:'g'+s.start.toString(36)+Math.random().toString(36).slice(2,6), kind:'workout', ex:'gym', plan:G.mode, planName:plan.name, dayK:day.k, dayF:day.f, start:s.start, duration:dur, setsDone:sets, reps, volume:Math.round(vol), kcal, sets:[], exs };
+  const r={ id:'g'+s.start.toString(36)+Math.random().toString(36).slice(2,6), kind:'workout', ex:'gym', plan:G.mode, planName:plan.name, dayK:day.k, dayF:day.f, start:s.start, duration:dur, setsDone:sets, reps, volume:Math.round(vol), kcal, cardio:(s.cardio||[]).map(c=>({...c, kcal:cardioCalc(c).kcal})), sets:[], exs };
   G.sess=null; ls.del('pace_gym_sess'); swapsTmp={}; ls.del('pace_swaps_tmp'); stopRest(); clearInterval(G.sessT);
   saveRun(r).then(()=>{ renderGym(); toast('Treino concluído 💪'); });
 }
@@ -1278,6 +1338,7 @@ function renderGymHist(){
       <div class="grid2"><div class="stat"><div class="lbl">Séries</div><div class="v num">${x.setsDone}</div><div class="u">${x.reps||0} reps</div></div><div class="stat"><div class="lbl">Tempo</div><div class="v num">${fmtTime(x.duration)}</div></div>
       <div class="stat"><div class="lbl">Volume</div><div class="v num">${x.volume? x.volume.toLocaleString('pt-BR'):'—'}</div><div class="u">kg levantados</div></div><div class="stat"><div class="lbl">Calorias</div><div class="v num">${x.kcal}</div><div class="u">kcal estimadas</div></div></div>
       ${det?`<div class="card" style="margin-top:12px"><table><tr><th>Exercício</th><th>Séries (reps × kg)</th></tr>${det}</table></div>`:''}
+      ${(x.cardio||[]).length?`<div class="card" style="margin-top:12px"><div class="lbl" style="margin-bottom:6px">Cardio</div>${x.cardio.map(c=>`<div style="font-size:14px;margin-top:6px">${cardioLine(c)}</div>`).join('')}</div>`:''}
       <div class="actions"><button class="btn danger" id="hDel">Excluir</button><button class="btn sec" id="hClose">Fechar</button></div>`);
     $('#hClose').onclick=closeSheet;
     $('#hDel').onclick=()=>{ const b=$('#hDel'); b.textContent='Confirmar exclusão'; b.onclick=async()=>{ closeSheet(); await deleteRun(x.id); renderGym(); toast('Treino excluído'); }; };
