@@ -6,7 +6,7 @@ Formato: **horizontal**, posição **inicial à esquerda → final à direita**,
 
 ## 👨 Masculino — 24 faltando (+1 para refazer)
 
-**Refazer**
+**Refazer** — ✅ puxada frente feita (28/11)
 - **Puxada frente** — a imagem atual ainda parece "puxada por trás", com a barra atrás da nuca. Faça **de lado ou de frente**. *Inicial:* sentado, coxas presas no apoio, braços estendidos para cima segurando a barra aberta. *Final:* tronco levemente inclinado para trás, barra **na frente do rosto**, encostando no alto do peito, cotovelos apontando para baixo.
 
 **Faltando**
