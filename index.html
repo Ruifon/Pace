@@ -91,6 +91,21 @@ main{flex:1;overflow:auto;padding:0 16px calc(92px + var(--safe-b))}
 .ctypes button{padding:9px 4px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--mut);font:600 11px Inter,sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;line-height:1.2}
 .ctypes button span{font-size:20px}
 .ctypes button.on{border-color:var(--acc2);color:var(--txt);background:color-mix(in srgb,var(--acc2) 12%,transparent)}
+.shopcard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;color:var(--txt);cursor:pointer;border-color:color-mix(in srgb,var(--acc2) 40%,var(--line))}
+.shopcard b{display:block;font-size:15px}
+.shopcard span{display:block;font-size:12px;color:var(--mut);margin-top:3px}
+.shopcard>div{flex:1}
+.shopcard em{font-style:normal;font-size:24px;color:var(--mut)}
+.shi{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 4px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--txt);font:inherit;cursor:pointer}
+.shi:last-of-type{border-bottom:0}
+.shi .cb{width:24px;height:24px;border-radius:7px;border:2px solid var(--line);flex:none;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff}
+.shi.ok .cb{background:var(--acc);border-color:var(--acc)}
+.shi>div{flex:1;min-width:0}
+.shi b{display:block;font-size:15px;font-weight:600}
+.shi span{display:block;font-size:12px;color:var(--acc2);margin-top:2px}
+.shi.ok b{text-decoration:line-through;color:var(--mut)}
+.shi.ok span{color:var(--mut)}
+.shi em{font-style:normal;color:var(--mut);padding:4px 8px}
 .swapbtn{flex:none;background:none;border:1px solid var(--line);color:var(--acc2);border-radius:9px;padding:6px 9px;font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
 .stepper{display:flex;gap:10px;align-items:center}
 .stepper button{width:56px;height:56px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font:600 26px Inter,sans-serif;cursor:pointer;flex:none}
@@ -1428,8 +1443,8 @@ const FOOD = {
   grao:['Grão-de-bico cozido',['LEG','PL'],164,8.9,27.4,2.6,7.6,[],0,'',80,300],
   queijo:['Queijo minas frescal',['PB'],264,17.4,3.2,20.2,0,['lactose','leite','animal'],30,'fatia',30,90],
   cottage:['Queijo cottage',['PB'],98,11.1,3.4,4.3,0,['lactose','leite','animal'],0,'',50,300],
-  iogurte:['Iogurte natural desnatado',['PB'],41,3.8,5.8,0.3,0,['lactose','leite','animal'],170,'pote',170,500],
-  iogurteZL:['Iogurte natural zero lactose',['PB'],41,3.8,5.8,0.3,0,['leite','animal'],170,'pote',170,500],
+  iogurte:['Iogurte natural desnatado',['PB'],41,3.8,5.8,0.3,0,['lactose','leite','animal'],170,'pote',170,340],
+  iogurteZL:['Iogurte natural zero lactose',['PB'],41,3.8,5.8,0.3,0,['leite','animal'],170,'pote',170,340],
   whey:['Whey protein concentrado',['PB'],400,78,8,6,0,['lactose','leite','animal'],30,'scoop',15,45],
   wheyIso:['Whey protein isolado',['PB'],370,88,2,1,0,['leite','animal'],30,'scoop',15,45],
   pea:['Proteína vegetal (ervilha)',['PB'],380,75,8,6,2,[],30,'scoop',15,45],
@@ -1509,9 +1524,17 @@ function dTargets(P){
 }
 function dCarbFactor(P, wd){ const t=P.treino||[]; if(!t.length||t.length===7) return 1; const nT=t.length, nR=7-nT; const tr=1.12, rs=Math.max(.75,(7-tr*nT)/nR); return t.includes(wd)?tr:rs; }
 function allowed(id, restr){ const bad=new Set((restr||[]).flatMap(r=>RESTR[r]?RESTR[r][1]:[])); return !FOOD[id][7].some(t=>bad.has(t)); }
-function slotOpts(s, restr){ const base=s.pref||GPREF[s.g]; const extra=GPREF[s.g].filter(x=>!base.includes(x)); return base.concat(extra).filter(x=>FOOD[x][1].includes(s.g) && allowed(x,restr)); }
+// substitutos só entram no cardápio automático quando o alimento comum é proibido pelas restrições (na troca manual aparecem todos)
+const SUBST = {iogurteZL:'iogurte', leiteZL:'leite', wheyIso:'whey', pea:'whey', paoSG:'paoInt', macArroz:'macarrao', bebSoja:'leite', bebAm:'leite', tofu:'ovo', soja:'frango'};
+function slotOpts(s, restr, all){ const base=s.pref||GPREF[s.g]; const extra=GPREF[s.g].filter(x=>!base.includes(x));
+  return base.concat(extra).filter(x=>FOOD[x][1].includes(s.g) && allowed(x,restr) && (all || !SUBST[x] || !allowed(SUBST[x],restr)) && (all || s.g!=='PL' || !['grao','lentilha'].includes(x) || !allowed('frango',restr))); }
+// rodízio mensal: a cada mês o cardápio desliza a janela de opções (proteínas, carboidratos do café/lanche, frutas, gorduras)
+let DMO = 0;
+const ymOf = d => d.getFullYear()*12 + d.getMonth();
+function dietMonth(P, date){ const base = P.ym ?? ymOf(new Date(P.created||Date.now())); return Math.max(0, ymOf(date||new Date()) - base); }
 function pickFor(s, wd, mi, si, restr, avoid){
   let L=slotOpts(s,restr).filter(x=>!(avoid||[]).includes(x)); if(!L.length) return null;
+  if(s.st!=='staple' && DMO){ const r=(DMO*2)%L.length; L=L.slice(r).concat(L.slice(0,r)); }
   const n=Math.min(L.length, s.st==='staple'?3:4);
   const idx = s.st==='staple' ? [0,0,1,0,0,2,0][wd] % n : (wd + mi*2 + si) % n;
   return L[idx];
@@ -1553,14 +1576,15 @@ function solveMeal(P, T, wd, mkey, frac, mi, sw){
   }
   return rows.filter(r=>r.g>0);
 }
-function dietDay(P, T, wd){ const sw=ls.get('pace_diet_sw')||{}; return MEALSET[P.ref].map(([k,fr],mi)=>({k, fr, mi, rows: solveMeal(P,T,wd,k,fr,mi,sw)})); }
+function dietDay(P, T, wd, mo){ if(mo!=null) DMO=mo; const sw=ls.get('pace_diet_sw')||{}; return MEALSET[P.ref].map(([k,fr],mi)=>({k, fr, mi, rows: solveMeal(P,T,wd,k,fr,mi,sw)})); }
 function fmtQty(id,g){ const f=FOOD[id]; const gs = f[1].includes('DAIRY') ? `${Math.round(g)} ml` : `${Math.round(g)} g`; if(f[8] && f[9]){ const u=g/f[8]; const uu=Math.round(u*2)/2; const us=uu.toString().replace('.',','); if(uu>1 && !/[sã]\.?$/.test(f[9]) && !f[9].includes('(')) { /* plural simples */ } return `${us} ${f[9]} <span class="gq">(${gs})</span>`; } return gs; }
 
 let D = { wd: new Date().getDay() };
 function renderDiet(){
+  if(D.view==='shop' && ls.get('pace_diet')){ renderShop(); return; }
   const box=$('#dietBox'); const P=ls.get('pace_diet');
   if(!P){ renderDietForm(); return; }
-  const T=dTargets(P); const day=dietDay(P,T,D.wd);
+  const T=dTargets(P); DMO=dietMonth(P); const day=dietDay(P,T,D.wd);
   let tot={k:0,p:0,c:0,f:0,fi:0}; day.forEach(m=>m.rows.forEach(r=>{ const x=mac(r.id,r.g); tot.k+=x.k; tot.p+=x.p; tot.c+=x.c; tot.f+=x.f; tot.fi+=x.fi; }));
   const train=(P.treino||[]).includes(D.wd), cf=dCarbFactor(P,D.wd), tK=Math.round(T.prot*4+T.carb*cf*4+T.fat*9);
   const pct=v=>Math.round(v/T.kcal*100);
@@ -1568,7 +1592,8 @@ function renderDiet(){
     <div class="kv"><div><b>${T.kcal}</b><span>kcal/dia (média)</span></div><div><b>${T.prot} g</b><span>proteína · ${pct(T.prot*4)}%</span></div><div><b>${T.carb} g</b><span>carboidrato · ${pct(T.carb*4)}%</span></div>
     <div><b>${T.fat} g</b><span>gordura · ${pct(T.fat*9)}%</span></div><div><b>${T.fib} g</b><span>fibras</span></div><div><b>${String(T.agua).replace('.',',')} L</b><span>água</span></div></div>
     <div style="font-size:12px;color:var(--mut);margin-top:8px;line-height:1.45">Gasto estimado ${T.tdee} kcal/dia (metabolismo basal ${T.tmb}). ${T.minor?'<b>Menor de 18 anos: a dieta fica em manutenção, sem déficit nem superávit. Procure um nutricionista.</b> ':''}Proteína ${({perder:'2,0',manter:'1,6',ganhar:'1,8'})[P.obj]} g/kg, gordura 20–35% e o restante em carboidrato (diretrizes ISSN/ACSM, alimentos da Tabela TACO).</div></div>
-    <div class="card"><div class="wdays">${WD.map((w,i)=>`<button data-wd="${i}" class="${i===D.wd?'on':''} ${(P.treino||[]).includes(i)?'tr':''}">${w}${i===new Date().getDay()?'<i>hoje</i>':''}</button>`).join('')}</div>
+    <button class="card shopcard" id="dShop"><span style="font-size:26px">🛒</span><div><b>Lista de compras</b><span>${(()=>{ const L=ls.get('pace_shop'); if(!L) return 'Gere a lista semanal ou mensal do seu cardápio'; const n=L.items.length+L.extra.length, k=Object.keys(L.checked).length; return `Lista ${L.days>=28?'mensal':'semanal'} · ${k} de ${n} itens marcados`; })()}</span></div><em>›</em></button>
+    <div class="card"><div class="lbl" style="margin-bottom:10px">Cardápio de ${new Date().toLocaleDateString('pt-BR',{month:'long'})} · muda todo mês</div><div class="wdays">${WD.map((w,i)=>`<button data-wd="${i}" class="${i===D.wd?'on':''} ${(P.treino||[]).includes(i)?'tr':''}">${w}${i===new Date().getDay()?'<i>hoje</i>':''}</button>`).join('')}</div>
     <div class="row" style="margin-top:12px"><div style="font-size:13px">${train?'🏋️ <b>Dia de treino</b> — mais carboidrato':'😴 <b>Dia de descanso</b>'+((P.treino||[]).length?' — menos carboidrato':'')}</div><div class="num" style="font-size:20px">${Math.round(tot.k)} <span style="font-size:12px;color:var(--mut)">/ ${tK} kcal</span></div></div>
     <div class="mbar"><span style="width:${Math.min(100,tot.p*4/tK*100)}%;background:var(--acc2)"></span><span style="width:${Math.min(100,tot.c*4/tK*100)}%;background:var(--acc)"></span><span style="width:${Math.min(100,tot.f*9/tK*100)}%;background:var(--hot)"></span></div>
     <div style="font-size:12px;color:var(--mut);margin-top:6px">P ${Math.round(tot.p)} g · C ${Math.round(tot.c)} g · G ${Math.round(tot.f)} g · fibras ${Math.round(tot.fi)} g</div>
@@ -1581,14 +1606,15 @@ function renderDiet(){
   h+=`<div class="store" style="text-align:left;line-height:1.5;margin:4px 2px 16px">Toque num alimento para trocar por um equivalente — a quantidade é recalculada para manter as calorias e os macronutrientes da refeição. Estimativa baseada em diretrizes científicas; não substitui um nutricionista. Gestantes, pessoas com diabetes, doença renal ou outra condição de saúde devem ter acompanhamento profissional.</div>`;
   box.innerHTML=h;
   box.querySelectorAll('[data-wd]').forEach(b=>b.onclick=()=>{ D.wd=+b.dataset.wd; renderDiet(); });
+  $('#dShop').onclick=()=>{ D.view='shop'; renderShop(); try{ $('main').scrollTo({top:0}); }catch(e){} };
   box.querySelectorAll('.food').forEach(b=>b.onclick=()=>openFoodSwap(P,T,b.dataset.m,+b.dataset.si));
   $('#dEdit').onclick=()=>renderDietForm(P);
 }
 function openFoodSwap(P,T,mk,si){
   const set=MEALSET[P.ref], mi=set.findIndex(x=>x[0]===mk), fr=set[mi][1];
-  const sw=ls.get('pace_diet_sw')||{}; const rows=solveMeal(P,T,D.wd,mk,fr,mi,sw); const cur=rows.find(r=>r.si===si); if(!cur) return;
+  DMO=dietMonth(P); const sw=ls.get('pace_diet_sw')||{}; const rows=solveMeal(P,T,D.wd,mk,fr,mi,sw); const cur=rows.find(r=>r.si===si); if(!cur) return;
   const s=MEALS[mk][2][si]; const others=rows.filter(r=>r.si!==si).map(r=>r.id);
-  const opts=slotOpts(s,P.restr).filter(x=>x!==cur.id && !others.includes(x));
+  const opts=slotOpts(s,P.restr,true).filter(x=>x!==cur.id && !others.includes(x));
   const prev=opts.map(x=>{ const t={...sw,[`${D.wd}|${mk}|${si}`]:x}; const rr=solveMeal(P,T,D.wd,mk,fr,mi,t).find(r=>r.si===si); return {x, g: rr?rr.g:0}; }).filter(o=>o.g>0);
   const def=pickFor(s,D.wd,mi,si,P.restr,[]);
   openSheet(`<h2>${FOOD[cur.id][0]}</h2><div style="color:var(--mut);font-size:13px;margin-top:-8px">${MEALS[mk][0]} · ${WD[D.wd]} · ${fmtQty(cur.id,cur.g)} · ${Math.round(mac(cur.id,cur.g).k)} kcal</div>
@@ -1632,12 +1658,100 @@ function renderDietForm(prev){
     if(P.altura>0 && P.altura<3) P.altura=Math.round(P.altura*100);
     const err = !(P.idade>=14&&P.idade<=90) ? 'Informe uma idade entre 14 e 90 anos.' : !(P.peso>=30&&P.peso<=250) ? 'Informe o peso em kg (ex.: 72).' : !(P.altura>=120&&P.altura<=230) ? 'Informe a altura em cm (ex.: 175).' : '';
     if(err){ $('#dErr').textContent=err; return; }
-    P.ref=+P.ref; P.treino.sort(); ls.set('pace_diet',P); ls.set('pace_diet_sw',{});
+    P.ref=+P.ref; P.treino.sort(); if(!prev || P.ym==null){ P.created=Date.now(); P.ym=ymOf(new Date()); } ls.set('pace_diet',P); ls.set('pace_diet_sw',{});
     weight=Math.round(P.peso*10)/10; ls.set('pace_weight',weight); renderWeight();
     renderDiet(); try{ $('main').scrollTo({top:0,behavior:'smooth'}); }catch(e){} toast('Dieta gerada!');
   };
 }
-try{ window.__paceDiet={dTargets,dietDay,mac,allowed,dCarbFactor,RESTR}; }catch(e){}
+
+
+// ---------- lista de compras: soma o cardápio dos próximos dias e converte para peso de compra ----------
+// [nome de compra, fator (cozido→cru: compra = g/fator), seção, modo g|ml|un, [embalagem, rótulo]]
+const BUY = {
+  frango:['Peito de frango (cru)',.75,'acougue','g'], patinho:['Patinho (cru)',.7,'acougue','g'], tilapia:['Filé de tilápia (cru)',.8,'acougue','g'],
+  atum:['Atum em água',1,'merc','g',[120,'lata']], lombo:['Lombo suíno (cru)',.7,'acougue','g'],
+  ovo:['Ovos',1,'lat','un',[12,'dúzia']], tofu:['Tofu firme',1,'lat','g',[300,'bandeja']], soja:['Proteína de soja texturizada',1,'merc','g',[400,'pacote']],
+  lentilha:['Lentilha (seca)',2.5,'merc','g',[500,'pacote']], grao:['Grão-de-bico (seco)',2.4,'merc','g',[500,'pacote']],
+  queijo:['Queijo minas frescal',1,'lat','g',[400,'peça']], cottage:['Queijo cottage',1,'lat','g',[200,'pote']],
+  iogurte:['Iogurte natural desnatado',1,'lat','g',[500,'pote 500 g']], iogurteZL:['Iogurte natural zero lactose',1,'lat','g',[500,'pote 500 g']],
+  whey:['Whey protein concentrado',1,'sup','g',[900,'pote']], wheyIso:['Whey protein isolado',1,'sup','g',[900,'pote']], pea:['Proteína vegetal (ervilha)',1,'sup','g',[600,'pote']],
+  paoFr:['Pão francês',1,'pad','un'], paoInt:['Pão integral',1,'pad','g',[500,'pacote']], paoSG:['Pão sem glúten',1,'pad','g',[350,'pacote']],
+  tapioca:['Goma de tapioca',1,'merc','g',[500,'pacote']], cuscuz:['Flocão de milho (cuscuz)',2.2,'merc','g',[500,'pacote']], aveia:['Aveia em flocos',1,'merc','g',[500,'pacote']],
+  arroz:['Arroz branco (cru)',2.5,'merc','g',[1000,'pacote 1 kg']], arrozInt:['Arroz integral (cru)',2.5,'merc','g',[1000,'pacote 1 kg']],
+  batataDoce:['Batata-doce',.9,'horti','g'], batata:['Batata inglesa',.9,'horti','g'], mandioca:['Mandioca',.8,'horti','g'],
+  macarrao:['Macarrão (cru)',2.3,'merc','g',[500,'pacote']], macArroz:['Macarrão de arroz (cru)',2.3,'merc','g',[500,'pacote']],
+  feijao:['Feijão carioca (cru)',2.5,'merc','g',[1000,'pacote 1 kg']], feijaoPr:['Feijão preto (cru)',2.5,'merc','g',[1000,'pacote 1 kg']],
+  banana:['Banana prata',1,'horti','un'], maca:['Maçã',1,'horti','un'], laranja:['Laranja',1,'horti','un'], mamao:['Mamão papaia',1,'horti','g',[300,'unid.']],
+  morango:['Morango',1,'horti','g',[250,'bandeja']], melancia:['Melancia',1,'horti','g'],
+  salada:['Folhas (alface, rúcula) e tomate',.85,'horti','g'], legumes:['Legumes (brócolis, cenoura, abobrinha)',.9,'horti','g'],
+  azeite:['Azeite de oliva',.92,'merc','ml',[500,'garrafa']], abacate:['Abacate',.7,'horti','g'], castanha:['Castanha-do-pará',1,'merc','g',[100,'pacote']],
+  pastaAm:['Pasta de amendoim',1,'merc','g',[500,'pote']], amendoim:['Amendoim torrado',1,'merc','g',[500,'pacote']], chia:['Semente de chia',1,'merc','g',[200,'pacote']],
+  leite:['Leite desnatado',1,'lat','ml',[1000,'caixa 1 L']], leiteZL:['Leite desnatado zero lactose',1,'lat','ml',[1000,'caixa 1 L']],
+  bebSoja:['Bebida de soja',1,'lat','ml',[1000,'caixa 1 L']], bebAm:['Bebida de amêndoas',1,'lat','ml',[1000,'caixa 1 L']],
+};
+const SECS = [['horti','🥬 Hortifruti'],['acougue','🥩 Açougue e peixaria'],['lat','🥛 Laticínios e ovos'],['pad','🍞 Padaria'],['merc','🛒 Mercearia'],['sup','💪 Suplementos'],['extra','➕ Outros']];
+function buyQty(id, g){
+  const b=BUY[id], f=FOOD[id]; if(!b) return {txt:`${Math.round(g)} g`, n:g};
+  const q=g/b[1];
+  if(b[3]==='un'){ const u=Math.ceil(q/(f[8]||50)-0.15); const pk=b[4]? ` · ≈ ${Math.ceil(u/b[4][0])} ${b[4][1]}${Math.ceil(u/b[4][0])>1?'s':''}`:''; return {txt:`${u} unid.${pk}`}; }
+  let main;
+  if(b[3]==='ml') main = q>=950 ? `${(Math.ceil(q/100)/10).toLocaleString('pt-BR')} L` : `${Math.ceil(q/50)*50} ml`;
+  else main = q>=950 ? `${(Math.ceil(q/100)/10).toLocaleString('pt-BR')} kg` : `${Math.max(50,Math.ceil(q/50)*50)} g`;
+  if(b[4]){ const n=Math.max(1,Math.ceil(q/b[4][0]-0.1)); const lbl=b[4][1]; const pl = n>1 && !lbl.endsWith('.') ? lbl.replace(/^(\w+)/, m=>m.endsWith('s')?m:m+(m.endsWith('ão')?'':'s')).replace('caixas 1 L','caixas de 1 L').replace('pacotes 1 kg','pacotes de 1 kg').replace('potes 500 g','potes de 500 g') : lbl; main += ` · ≈ ${n} ${pl}`; }
+  return {txt:main};
+}
+function buildShop(P, days){
+  const T=dTargets(P); const tot={}; const start=new Date(); start.setHours(0,0,0,0);
+  for(let i=0;i<days;i++){ const d=new Date(start); d.setDate(d.getDate()+i);
+    dietDay(P,T,d.getDay(),dietMonth(P,d)).forEach(m=>m.rows.forEach(r=>{ tot[r.id]=(tot[r.id]||0)+r.g; })); }
+  const end=new Date(start); end.setDate(end.getDate()+days-1);
+  const items=Object.entries(tot).map(([id,g])=>({k:id, sec:(BUY[id]||[])[2]||'merc', name:(BUY[id]||[FOOD[id][0]])[0], qty:buyQty(id,g).txt}));
+  return {created:Date.now(), days, from:start.getTime(), to:end.getTime(), items, checked:{}, extra:[]};
+}
+function renderShop(){
+  const box=$('#dietBox'); const P=ls.get('pace_diet'); const L=ls.get('pace_shop');
+  if(!L || D.newShop){ D.newShop=false;
+    box.innerHTML=`<div class="card"><div class="row"><div class="lbl">🛒 Lista de compras</div><button class="linkbtn" id="shBack">← Dieta</button></div>
+      <div style="font-size:13px;color:var(--mut);margin-top:8px;line-height:1.45">Soma todas as refeições do seu cardápio a partir de hoje (com suas trocas e restrições) e converte para o que você compra: arroz, feijão e macarrão crus, carnes cruas, frutas em unidades e embalagens aproximadas.</div>
+      <div class="form" style="margin-top:12px"><div class="seg" id="shPer"><button data-v="7" class="on">Semanal<br><small>7 dias</small></button><button data-v="30">Mensal<br><small>30 dias</small></button></div></div>
+      ${L?'<div class="store" style="text-align:left;margin:10px 0 0;color:var(--hot)">Gerar uma nova lista substitui a atual e desmarca os itens.</div>':''}
+      <div class="actions">${L?'<button class="btn sec" id="shCancel">Cancelar</button>':''}<button class="btn pri" id="shGen">Gerar lista</button></div></div>`;
+    let per=7; box.querySelectorAll('#shPer button').forEach(b=>b.onclick=()=>{ per=+b.dataset.v; box.querySelectorAll('#shPer button').forEach(x=>x.classList.toggle('on',x===b)); });
+    $('#shBack').onclick=()=>{ D.view=null; renderDiet(); };
+    if($('#shCancel')) $('#shCancel').onclick=renderShop;
+    $('#shGen').onclick=()=>{ ls.set('pace_shop', buildShop(P, per)); renderShop(); toast('Lista de compras gerada'); };
+    return;
+  }
+  const all=L.items.concat(L.extra.map((e,i)=>({k:'x'+i, sec:'extra', name:e, qty:''})));
+  const done=all.filter(x=>L.checked[x.k]).length;
+  const f=new Date(L.from), t=new Date(L.to), dd=d=>`${pad(d.getDate())}/${pad(d.getMonth()+1)}`;
+  let h=`<div class="card"><div class="row"><div><div class="lbl">🛒 Lista ${L.days>=28?'mensal':'semanal'}</div><div style="font-size:13px;color:var(--mut);margin-top:4px">${dd(f)} a ${dd(t)} · ${L.days} dias</div></div><button class="linkbtn" id="shBack">← Dieta</button></div>
+    <div class="row" style="margin-top:12px"><div style="font-size:14px"><b>${done}</b> de ${all.length} itens no carrinho</div>${done?'<button class="linkbtn" id="shClear">Desmarcar tudo</button>':''}</div>
+    <div class="cybar"><span style="width:${all.length?done/all.length*100:0}%"></span></div>
+    <div class="actions" style="margin-top:12px"><button class="btn sec" id="shCopy">Copiar lista</button><button class="btn sec" id="shNew">Nova lista</button></div></div>`;
+  SECS.forEach(([sk,sn])=>{
+    const its=all.filter(x=>x.sec===sk); if(!its.length && sk!=='extra') return;
+    its.sort((a,b)=>(!!L.checked[a.k])-(!!L.checked[b.k]) || a.name.localeCompare(b.name));
+    h+=`<div class="card"><div class="lbl" style="margin-bottom:4px">${sn}</div>${its.map(x=>`<button class="shi ${L.checked[x.k]?'ok':''}" data-k="${x.k}"><span class="cb">${L.checked[x.k]?'✓':''}</span><div><b></b><span>${x.qty}</span></div>${sk==='extra'?`<em data-del="${x.k}">✕</em>`:''}</button>`).join('')}
+      ${sk==='extra'?`<div class="row" style="margin-top:10px;gap:8px"><input id="shAdd" placeholder="Adicionar item (ex.: café, sal, temperos)"><button class="btn pri" id="shAddB" style="padding:12px 14px">+</button></div>`:''}</div>`;
+  });
+  h+=`<div class="store" style="text-align:left;line-height:1.5;margin:4px 2px 16px">Quantidades aproximadas, já convertidas de cozido para cru. Para o mês, a lista acompanha o cardápio de cada semana, inclusive a troca de cardápio na virada do mês.</div>`;
+  box.innerHTML=h;
+  box.querySelectorAll('.shi').forEach((b,i)=>{ const x=all.find(y=>y.k===b.dataset.k); b.querySelector('b').textContent=x.name;
+    b.onclick=(ev)=>{ if(ev.target.dataset.del!=null){ const i=+ev.target.dataset.del.slice(1); L.extra.splice(i,1); const ch={}; Object.keys(L.checked).forEach(k=>{ if(!k.startsWith('x')) ch[k]=L.checked[k]; }); L.checked=ch; ls.set('pace_shop',L); renderShop(); return; }
+      if(L.checked[x.k]) delete L.checked[x.k]; else { L.checked[x.k]=true; buzz(15); } ls.set('pace_shop',L); renderShop(); }; });
+  $('#shBack').onclick=()=>{ D.view=null; renderDiet(); };
+  $('#shNew').onclick=()=>{ D.newShop=true; renderShop(); };
+  if($('#shClear')) $('#shClear').onclick=()=>{ L.checked={}; ls.set('pace_shop',L); renderShop(); };
+  const add=()=>{ const v=$('#shAdd').value.trim(); if(!v) return; L.extra.push(v); ls.set('pace_shop',L); renderShop(); };
+  $('#shAddB').onclick=add; $('#shAdd').onkeydown=e=>{ if(e.key==='Enter') add(); };
+  $('#shCopy').onclick=async()=>{
+    const txt='🛒 Lista de compras — Pace ('+dd(f)+' a '+dd(t)+')\n'+SECS.map(([sk,sn])=>{ const its=all.filter(x=>x.sec===sk); return its.length? '\n'+sn+'\n'+its.map(x=>(L.checked[x.k]?'☑ ':'☐ ')+x.name+(x.qty?' — '+x.qty:'')).join('\n') : ''; }).join('\n');
+    try{ await navigator.clipboard.writeText(txt); toast('Lista copiada — cole no WhatsApp ou nas notas'); }catch(e){ toast('Não foi possível copiar aqui'); }
+  };
+}
+
+try{ window.__paceDiet={dTargets,dietDay,mac,allowed,dCarbFactor,RESTR,buildShop,dietMonth}; }catch(e){}
 
 // ---------- nav ----------
 function go(v){ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v)); if(v==='act') renderActs(); else if(v==='wk') setMode(G.mode); else if(v==='set') renderSettings(); else if(v==='diet') renderDiet(); else drawLive(); }
