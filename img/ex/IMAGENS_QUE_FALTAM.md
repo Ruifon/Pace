@@ -4,36 +4,9 @@ Formato: **horizontal**, posição **inicial à esquerda → final à direita**,
 
 ---
 
-## 👨 Masculino — 24 faltando (+1 para refazer)
+## 👨 Masculino — ✅ completo (28/11)
 
-**Refazer** — ✅ puxada frente feita (28/11)
-- **Puxada frente** — a imagem atual ainda parece "puxada por trás", com a barra atrás da nuca. Faça **de lado ou de frente**. *Inicial:* sentado, coxas presas no apoio, braços estendidos para cima segurando a barra aberta. *Final:* tronco levemente inclinado para trás, barra **na frente do rosto**, encostando no alto do peito, cotovelos apontando para baixo.
-
-**Faltando**
-1. **Burpee** — *Inicial:* em pé. *Final:* deitado em prancha com o peito no chão (pode ter 3 quadros: em pé → prancha → salto com braços para cima).
-2. **Agachamento hack** — *Inicial:* costas e ombros apoiados na máquina, pernas estendidas. *Final:* joelhos dobrados a 90°, coxas paralelas à plataforma.
-3. **Agachamento sumô** — *Inicial:* em pé, pés bem afastados e apontados para fora, halter seguro com as duas mãos entre as pernas. *Final:* agachado, coxas paralelas ao chão, tronco ereto.
-4. **Agachamento búlgaro** — *Inicial:* em pé, pé de trás apoiado num banco, halteres ao lado do corpo. *Final:* joelho de trás quase tocando o chão, joelho da frente a 90°.
-5. **Subida no banco** — *Inicial:* em pé, um pé apoiado no banco. *Final:* em pé em cima do banco, perna estendida, outro joelho elevado.
-6. **Cadeira abdutora** — *Inicial:* sentado na máquina com as pernas juntas. *Final:* pernas abertas para fora.
-7. **Glúteo no cabo (coice)** — *Inicial:* em pé de frente para a polia, caneleira no tornozelo, perna ao lado da outra. *Final:* perna estendida para trás, quadril parado.
-8. **Panturrilha sentado** — *Inicial:* sentado na máquina, apoio sobre os joelhos, calcanhares baixos. *Final:* na ponta dos pés, calcanhares elevados.
-9. **Supino reto com halteres** — *Inicial:* deitado no banco reto, halteres na linha do peito, cotovelos a ~45°. *Final:* braços estendidos acima do peito.
-10. **Supino na máquina** — *Inicial:* sentado, pegadas na linha do peito, cotovelos dobrados. *Final:* braços estendidos à frente.
-11. **Crucifixo (voador)** — *Inicial:* sentado no voador/peck deck, braços abertos na linha do ombro. *Final:* braços fechados à frente do peito, cotovelos levemente dobrados.
-12. **Remada unilateral com halter** — *Inicial:* joelho e mão apoiados no banco, braço estendido segurando o halter. *Final:* cotovelo puxado para trás, halter ao lado da cintura.
-13. **Desenvolvimento na máquina** — *Inicial:* sentado, pegadas na altura dos ombros. *Final:* braços estendidos acima da cabeça.
-14. **Crucifixo invertido** — *Inicial:* tronco inclinado à frente (ou na máquina voador invertido), braços estendidos à frente. *Final:* braços abertos para os lados, escápulas apertadas.
-15. **Mergulho no banco** — *Inicial:* mãos no banco atrás do corpo, pernas estendidas, braços retos. *Final:* cotovelos dobrados a 90°, quadril abaixo do banco.
-16. **Rosca no cabo** — *Inicial:* em pé de frente para a polia baixa, barra reta, braços estendidos. *Final:* barra na altura do peito, cotovelos colados ao corpo.
-17. **Levantamento terra** — *Inicial:* agachado com a barra no chão encostada nas canelas, coluna reta. *Final:* em pé, quadril e joelhos estendidos, barra na altura das coxas.
-18. **Crossover (cabo)** — *Inicial:* em pé entre as polias altas, braços abertos. *Final:* mãos juntas à frente do quadril/peito, cotovelos levemente dobrados.
-19. **Puxada pegada fechada (triângulo)** — *Inicial:* sentado, braços estendidos para cima segurando o triângulo. *Final:* triângulo no alto do peito, cotovelos junto ao corpo.
-20. **Rosca Scott** — *Inicial:* sentado no banco Scott, braços apoiados e quase estendidos. *Final:* barra perto dos ombros.
-21. **Tríceps testa** — *Inicial:* deitado no banco, barra acima do peito com braços estendidos. *Final:* cotovelos dobrados, barra perto da testa (braço parado, só o antebraço mexe).
-22. **Cadeira adutora** — *Inicial:* sentado na máquina com as pernas abertas. *Final:* pernas fechadas.
-23. **Elevação frontal** — *Inicial:* em pé, halteres à frente das coxas. *Final:* braços estendidos à frente na altura dos ombros.
-24. **Encolhimento** — *Inicial:* em pé, halteres ao lado do corpo, ombros relaxados. *Final:* ombros elevados em direção às orelhas.
+Falta só **refazer a Panturrilha sentado**: *Inicial:* sentado na máquina, calcanhar **bem abaixo** da plataforma (panturrilha alongada). *Final:* na ponta dos pés, calcanhar **bem alto**. De lado, com o pé em destaque.
 
 ---
 
